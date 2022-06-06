@@ -1,4 +1,3 @@
-
 # rdm - RDM Dataset Mapper
 
 RDM is an open-source dataset mapper. It intends to help developers mapping data from external sources into their database.
@@ -15,9 +14,12 @@ RDM is not yet ready for general use. Although a Command Line Interface isn't im
 git clone https://github.com/lsmacedo/rdm
 cd rdm
 ```
-2. Add a dataset in the `/datasets` directory (only .csv extension is supported right now),
-3. Create a RDM file in the `/maps` directory. For that, copy the `local.example.json` example and update it according to your dataset columns and your database's data model.
-4. Run `yarn dev` in the root directory.
+
+2. Create a `.env` file based on the `.env.example` and set your database url in DATABASE_URL
+3. Install dependencies and then run `prisma generate`
+4. Add a dataset in the `/datasets` directory (only .csv extension is supported right now),
+5. Create a RDM file in the `/maps` directory. For that, copy the `local.example.json` example and update it according to your dataset columns and your database's data model.
+6. Run `yarn dev` (or `npm run dev`) in the root directory.
 
 # RDM File
 
@@ -81,9 +83,10 @@ Check out the description below for each supported properties of the RDM file.
 
 **Type**: `Record<string, string>`
 
-**Content**: Fill this object with a list of assignments to your entities listed in the `entities` property, assuming each row from the dataset as `_`. For example, if you want the property `country` from the dataset to be mapped to your `name` column from the `country` table, use: `"country.name": "_.country"`. It is also possible to make assignments to values from your database as in the following example: `"country.capital": "city.id"`. 
+**Content**: Fill this object with a list of assignments to your entities listed in the `entities` property, assuming each row from the dataset as `_`. For example, if you want the property `country` from the dataset to be mapped to your `name` column from the `country` table, use: `"country.name": "_.country"`. It is also possible to make assignments to values from your database as in the following example: `"country.capital": "city.id"`.
 
-**Example**: 
+**Example**:
+
 ```json
 {
   "country.name": "_.country",
@@ -91,7 +94,6 @@ Check out the description below for each supported properties of the RDM file.
   "city.name": "_.capital"
 }
 ```
-
 
 > Note: There's no need to declare the entities or fields in a specified order, just be careful not to include any cyclic dependency on entities from your database.
 
@@ -102,6 +104,7 @@ Check out the description below for each supported properties of the RDM file.
 **Content**: Fill this object with information on how to merge data for each entity from your database. The keys from this property should be the entity names, and the value should include `strategy` and `on` properties. The `on` property refers to a list of columns from the table that should be used as unique identifiers during the upsert. It is important to make sure that there should be a unique constraint in the database for those columns.
 
 **Example**:
+
 ```json
 {
   "country": {
