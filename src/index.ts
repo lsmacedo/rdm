@@ -1,7 +1,7 @@
 import { format } from 'sql-formatter';
 import { v4 } from 'uuid';
 import prisma from './prisma';
-import json from '../maps/top_tracks.json';
+import json from '../maps/local.template.json';
 import { MergeType, RdmObject } from './types/rdmObject';
 import { readCsv } from './utils/readCsv';
 import { uniqueArray } from './utils/uniqueArray';
