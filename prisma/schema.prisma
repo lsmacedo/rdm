@@ -9,3 +9,13 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model RdmMigration {
+  id            Int      @id @default(autoincrement())
+  name          String
+  type          String
+  affected_rows Int
+  created_at    DateTime
+
+  @@map(name: "_rdm_migration")
+}
