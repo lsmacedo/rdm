@@ -11,7 +11,7 @@ RDM is not yet ready for general use. Although a Command Line Interface isn't im
 
 1. First of all, clone the repository and cd to it's directory.
 
-```
+```shell
 git clone https://github.com/lsmacedo/rdm
 cd rdm
 ```
@@ -84,7 +84,7 @@ Check out the description below for each supported properties of the RDM file.
 **Content**: Fill this object with a list of assignments to your entities listed in the `entities` property, assuming each row from the dataset as `_`. For example, if you want the property `country` from the dataset to be mapped to your `name` column from the `country` table, use: `"country.name": "_.country"`. It is also possible to make assignments to values from your database as in the following example: `"country.capital": "city.id"`. 
 
 **Example**: 
-```
+```json
 {
   "country.name": "_.country",
   "country.capital": "city.id",
@@ -102,7 +102,7 @@ Check out the description below for each supported properties of the RDM file.
 **Content**: Fill this object with information on how to merge data for each entity from your database. The keys from this property should be the entity names, and the value should include `strategy` and `on` properties. The `on` property refers to a list of columns from the table that should be used as unique identifiers during the upsert. It is important to make sure that there should be a unique constraint in the database for those columns.
 
 **Example**:
-```
+```json
 {
   "country": {
     "strategy": "upsert",
