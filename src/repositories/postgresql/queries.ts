@@ -53,72 +53,78 @@ export const insertMultipleRowsPostgreSql = (data: {
 };
 
 export const insertFromSelectPostgreSql = (data: {
-  insertTableName: string;
-  insertColumns: string[];
-  selectTableName: string;
-  selectColumns: { table: string; column: string }[];
-  selectDistinctOn?: { table: string; column: string }[];
+  insert: {
+    table: string;
+    columns: string[];
+  };
+  select: {
+    tablePrefix?: string;
+    table: string;
+    columns: { table: string; column: string }[];
+    distinctOn?: { table: string; column: string }[];
+  };
   joins?: {
-    type: 'left' | 'inner';
-    tableName: string;
+    type: 'inner' | 'left';
+    table: string;
     on: { column: string; value: { table: string; column: string } }[];
   }[];
   onConflict?: {
     on: string[];
-    action: 'update' | 'nothing';
-    set: { column: string; value: { table: string; column: string } }[];
+    update: string[];
+    action: 'nothing' | 'update';
   };
 }) => {
-  const {
-    insertTableName,
-    insertColumns,
-    selectTableName,
-    selectColumns,
-    selectDistinctOn,
-    joins,
-    onConflict,
-  } = data;
+  // Get input data
+  const { insert, select, joins, onConflict } = data;
+  const selectPrefix = select.tablePrefix ? select.tablePrefix : '';
+
+  // insert into table1 (column1, column2)
   const insertSql = `
-    insert into "${insertTableName}" (${insertColumns.join(', ')})
+    insert into "${insert.table}" (${insert.columns.join(', ')})
   `;
-  const distinct = selectDistinctOn?.length
-    ? `distinct on (${selectDistinctOn
-        .map(({ table, column }) => `${table}.${column}`)
+
+  // select [distinct on (table2.column1)] table2.column1, table2.column2 from table2
+  const distinct = select.distinctOn?.length
+    ? `distinct on (${select.distinctOn
+        .map(({ table, column }) => `${selectPrefix}${table}.${column}`)
         .join(', ')})`
     : '';
   const selectSql = `
-    select ${distinct} ${selectColumns
-    .map(({ table, column }) => `${table}.${column}`)
-    .join(', ')} from "${selectTableName}"
+    select ${distinct} ${select.columns
+    .map(({ table, column }) => `${selectPrefix}${table}.${column}`)
+    .join(', ')} from "${selectPrefix}${select.table}"
   `;
+
+  // join table3 on table3.column1 = table1.column1 and table3.column2 = table2.column2
   const joinSql = joins
     ?.map((join) => {
-      const { type, tableName, on } = join;
+      const { type, table, on } = join;
       return `
-      ${type} join "${tableName}" on
+      ${type} join "${selectPrefix}${table}" on
       ${on
         .map(
           ({ column, value }) =>
-            `${tableName}.${column} = ${value.table}.${value.column}`
+            `${selectPrefix}${table}.${column} = ${selectPrefix}${value.table}.${value.column}`
         )
-        .join(' and ')}
-    `;
+        .join(' and ')}`;
     })
     .join('\n');
-  const set =
-    onConflict?.action === 'update' && onConflict.set?.length ? 'set' : '';
+
+  // on conflict (column1, column2) do [update set column1 = table1.column1][nothing]
   const onConflictSql = onConflict?.on?.length
-    ? `
-    on conflict (${onConflict.on.join(', ')}) do ${onConflict.action} ${set}
-    ${onConflict.set
-      .map(({ column, value }) => `${column} = ${value.table}.${value.column}`)
-      .join(', ')}
-  `
+    ? `on conflict (${onConflict.on.join(', ')}) do ${onConflict.action}`
     : '';
+  const onConflictSetSql =
+    onConflict?.action === 'update'
+      ? `set ${onConflict.update
+          .map((column) => `${column} = excluded.${column}`)
+          .join(', ')}`
+      : '';
   return `
     ${insertSql}
     ${selectSql}
     ${joinSql}
     ${onConflictSql}
+    ${onConflictSetSql}
   `;
 };
