@@ -81,6 +81,7 @@ async function importDataset(): Promise<void> {
             tablePrefix: ctePrefix,
             table: entities[0].name,
             columns: Object.values(entity.assignments).map((field) => ({
+              template: /{{.*}}/.test(field) ? field.replace(/{|}/g, '') : null,
               table: entityName(field),
               column: fieldName(field),
             })),

@@ -60,7 +60,7 @@ export const insertFromSelectPostgreSql = (data: {
   select: {
     tablePrefix?: string;
     table: string;
-    columns: { table: string; column: string }[];
+    columns: { template: string | null; table: string; column: string }[];
     distinctOn?: { table: string; column: string }[];
   };
   joins?: {
@@ -91,7 +91,10 @@ export const insertFromSelectPostgreSql = (data: {
     : '';
   const selectSql = `
     select ${distinct} ${select.columns
-    .map(({ table, column }) => `${selectPrefix}${table}.${column}`)
+    .map(
+      ({ template, table, column }) =>
+        template ?? `${selectPrefix}${table}.${column}`
+    )
     .join(', ')} from "${selectPrefix}${select.table}"
   `;
 
