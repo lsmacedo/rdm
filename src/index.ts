@@ -4,14 +4,20 @@ import prisma from './prisma';
 import json from '../maps/local.template.json';
 import { MergeType, RdmObject } from './types/rdmObject';
 import { readCsv } from './utils/readCsv';
-import { uniqueArray } from './utils/uniqueArray';
 import { topologicalSort } from './utils/topologicalSort';
 import {
   entityName,
   entitiesArray,
   fieldName,
   fieldsArray,
+  valueOf,
 } from './utils/rdmObjectUtils';
+import {
+  createCtesPostgreSql,
+  createTemporaryTablePostgreSql,
+  insertFromSelectPostgreSql,
+  insertMultipleRowsPostgreSql,
+} from './repositories/postgresql/queries';
 
 type Entity = {
   name: string;
@@ -36,108 +42,89 @@ async function importDataset(): Promise<void> {
   const tempTableName = `_rdm_${v4()}`;
   await createTemporaryTable(entities, tempTableName);
 
-  // Insert data using CTEs
+  // List of columns for temporary table
   const baseColumnNames = fieldsArray(Object.values(entities[0].dependents));
-  const ctes = entities
-    .map((entity, index) => {
-      if (index === 0) {
-        // Insert into temporary table the data that other entities depend on
-        // and return it
-        return `
-          with __ as (
-            insert into "${tempTableName}" (${baseColumnNames.join(', ')})
-            values ${datasetRows.map(
-              (_, i) => `(${baseColumnNames
-                .map((_, j) => `$${i * baseColumnNames.length + j + 1}`)
-                .join(', ')}
-                )`
-            )}
-            returning ${baseColumnNames.join(', ')}
-          )${entities.length > 1 ? ',' : ''}`;
-      } else {
-        /*
-          Insert into table the data that it needs to assign
-          Select the data that it needs to assign
-          From __
-          Join other dependencies
-          Return the data that others depend on
-          */
-        return `
-          _${entity.name} as (
-            insert into ${entity.name}
-              (${fieldsArray(Object.keys(entity.assignments)).join(', ')})
-            select distinct on (${entity.uniqueKeys
-              .map((field) => {
-                const f = rdmObject.fields[`${entity.name}.${field}`];
-                return `_${entityName(f)}.${fieldName(f)}`;
-              })
-              .join(', ')})
-              ${Object.values(entity.assignments)
-                // TODO: implement better way to handle templates
-                .map((v) => (/{{.*}}/.test(v) ? v.replace(/{{|}}/g, '') : v))
-                .map((v) => `_${v}`)
-                .join(', ')}
-            from
-              __
-            ${entitiesArray(Object.values(entity.assignments))
-              .filter((dependency) => dependency !== '_')
-              .sort(
-                (a, b) =>
-                  entities.map((e) => e.name).indexOf(a) -
-                  entities.map((e) => e.name).indexOf(b)
-              )
-              .map((dependency) => {
-                const dependencyEntity = entities.find(
-                  (entity) => entity.name === dependency
-                );
-                return `join _${dependency} on ${dependencyEntity?.uniqueKeys
-                  .map(
-                    (dependencyField) => `
-              _${dependency}.${dependencyField} = _${
-                      rdmObject.fields[`${dependency}.${dependencyField}`]
-                    }`
-                  )
-                  .join(' and')}`;
-              })
-              .join('\n          ')}
-            ${
-              entity.uniqueKeys.length
-                ? `on conflict (${entity.uniqueKeys.join(', ')})
-            do
-                  ${
-                    entity.mergeStrategy === 'upsert'
-                      ? `update set ${fieldsArray(
-                          Object.keys(entity.assignments)
-                        )
-                          .map((key) => `${key} = excluded.${key}`)
-                          .join(', ')}`
-                      : 'nothing'
-                  }`
-                : ''
-            }
-            returning ${[
-              ...fieldsArray(Object.values(entity.dependents)),
-              ...entity.uniqueKeys,
-            ]
-              .filter(uniqueArray)
-              .join(', ')}
-          )${index === entities.length - 1 ? '' : ','}`;
-      }
-    })
-    .join('\n');
+
+  // Sort columns of dataset rows according to baseColumnNames
+  const rows = datasetRows.map((row) =>
+    Object.keys(row)
+      .filter((key) => baseColumnNames.includes(key))
+      .sort((a, b) => baseColumnNames.indexOf(a) - baseColumnNames.indexOf(b))
+      .reduce((acc, key) => ({ ...acc, [key]: row[key] }), {})
+  );
+
+  // Insert data using CTEs
+  const ctePrefix = 'cte_';
+  const ctes = createCtesPostgreSql({
+    ctes: [
+      // For the temporary table
+      {
+        name: `${ctePrefix}${entities[0].name}`,
+        // Insert the data that other entities depend on
+        innerSql: insertMultipleRowsPostgreSql({
+          tableName: tempTableName,
+          columnNames: baseColumnNames,
+          rows: rows.map((row) => Object.values(row)),
+        }),
+      },
+      // For each table...
+      ...entities.slice(1).map((entity) => ({
+        name: `${ctePrefix}${entity.name}`,
+        innerSql: insertFromSelectPostgreSql({
+          // Insert into table the columns to be assigned
+          insert: {
+            table: entity.name,
+            columns: fieldsArray(Object.keys(entity.assignments)),
+          },
+          // Select the data to be assigned to it (distinct on the unique keys)
+          select: {
+            tablePrefix: ctePrefix,
+            table: entities[0].name,
+            columns: Object.values(entity.assignments).map((field) => ({
+              table: entityName(field),
+              column: fieldName(field),
+            })),
+            distinctOn: entity.uniqueKeys.map((key) => {
+              const { table, column } = valueOf(entity.name, key, rdmObject);
+              return { table: table, column };
+            }),
+          },
+          // Join other tables required for the assignments
+          joins: entitiesArray(Object.values(entity.assignments))
+            .filter((dependency) => dependency !== entities[0].name)
+            .map((dependency) => ({
+              type: 'inner',
+              table: dependency,
+              // Join on unique keys from dependencies
+              on: entities
+                // Get the Entity object for the dependency
+                .find((entity) => entity.name === dependency)!
+                // Get the unique keys for the dependency
+                .uniqueKeys.map((field) => {
+                  const value = valueOf(dependency, field, rdmObject);
+                  return {
+                    column: field,
+                    value: { table: value.table, column: value.column },
+                  };
+                }),
+            })),
+          onConflict: {
+            on: entity.uniqueKeys,
+            action: entity.mergeStrategy === 'upsert' ? 'update' : 'nothing',
+            update: fieldsArray(Object.keys(entity.assignments)),
+          },
+        }),
+      })),
+    ],
+  });
 
   // Execute SQL
   const sql = `
-    ${ctes}
+    ${ctes.join('')}
     select 1 from ${entities[entities.length - 1]?.name}
   `;
   console.log(format(sql, { language: 'postgresql' }));
-  await prisma.$executeRawUnsafe(
-    sql,
-    ...datasetRows.flatMap((row) =>
-      baseColumnNames.map((column) => row[column])
-    )
-  );
+  await prisma.$executeRawUnsafe(sql);
 }
 
 async function createTemporaryTable(
@@ -146,10 +133,10 @@ async function createTemporaryTable(
 ): Promise<void> {
   // TODO: infer type or add new property to RdmObject type
   const baseColumnNames = fieldsArray(Object.values(entities[0].dependents));
-  const columns = baseColumnNames.map((value) => `${value} text`);
+  const columns = baseColumnNames.map((name) => ({ name, type: 'text' }));
 
   await prisma.$executeRawUnsafe(
-    `create temporary table "${tableName}" (${columns.join(', ')});`
+    createTemporaryTablePostgreSql({ tableName, columns })
   );
 }
 
@@ -163,31 +150,47 @@ function readDatasetRows(path: string): Promise<Record<string, string>[]> {
 
 function getEntitiesData(rdmObject: RdmObject): Entity[] {
   const entityNames = ['_', ...Object.values(rdmObject.entities)];
-  return sortEntitiesByDependencies(
-    entityNames.map((name) => {
-      const assignments = Object.keys(rdmObject.fields)
-        .filter((key) => key.startsWith(`${name}.`))
-        .reduce(
-          (acc, key) => ({ ...acc, [key]: rdmObject.fields[key] }),
-          {} as Record<string, string>
+  const entities = entityNames.map((name) => {
+    const assignments = Object.keys(rdmObject.fields)
+      .filter((key) => key.startsWith(`${name}.`))
+      .reduce(
+        (acc, key) => ({ ...acc, [key]: rdmObject.fields[key] }),
+        {} as Record<string, string>
+      );
+    const dependents = Object.keys(rdmObject.fields)
+      .filter((key) => rdmObject.fields[key].startsWith(`${name}.`))
+      .reduce(
+        (acc, key) => ({ ...acc, [key]: rdmObject.fields[key] }),
+        {} as Record<string, string>
+      );
+    const uniqueKeys = rdmObject.merge[name]?.on ?? [];
+    const mergeStrategy = rdmObject.merge[name]?.strategy ?? 'upsert';
+    return {
+      name,
+      assignments,
+      dependents,
+      uniqueKeys,
+      mergeStrategy,
+    };
+  });
+
+  // Sort entities by their dependencies
+  const sortedEntities = sortEntitiesByDependencies(entities);
+
+  // Sort entities assignments according to the entity's dependencies
+  return sortedEntities.map((entity) => ({
+    ...entity,
+    assignments: Object.keys(entity.assignments)
+      .sort((a, b) => {
+        const entityA = entityName(entity.assignments[a]);
+        const entityB = entityName(entity.assignments[b]);
+        return (
+          sortedEntities.map((e) => e.name).indexOf(entityA) -
+          sortedEntities.map((e) => e.name).indexOf(entityB)
         );
-      const dependents = Object.keys(rdmObject.fields)
-        .filter((key) => rdmObject.fields[key].startsWith(`${name}.`))
-        .reduce(
-          (acc, key) => ({ ...acc, [key]: rdmObject.fields[key] }),
-          {} as Record<string, string>
-        );
-      const uniqueKeys = rdmObject.merge[name]?.on ?? [];
-      const mergeStrategy = rdmObject.merge[name]?.strategy ?? 'upsert';
-      return {
-        name,
-        assignments,
-        dependents,
-        uniqueKeys,
-        mergeStrategy,
-      };
-    })
-  );
+      })
+      .reduce((acc, key) => ({ ...acc, [key]: entity.assignments[key] }), {}),
+  }));
 }
 
 function sortEntitiesByDependencies(entities: Entity[]): Entity[] {
