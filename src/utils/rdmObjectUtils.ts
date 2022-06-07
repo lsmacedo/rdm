@@ -1,3 +1,5 @@
+import { stringify } from 'querystring';
+import { RdmObject } from 'src/types/rdmObject';
 import { uniqueArray } from './uniqueArray';
 
 /**
@@ -32,4 +34,13 @@ export function entitiesArray(array: string[]): string[] {
     .filter((v) => !/{{.*}}/.test(v))
     .map((v) => entityName(v))
     .filter(uniqueArray);
+}
+
+export function valueOf(
+  entity: string,
+  field: string,
+  rdmObject: RdmObject
+): { table: string; column: string } {
+  const value = rdmObject.fields[`${entity}.${field}`];
+  return { table: entityName(value), column: fieldName(value) };
 }
