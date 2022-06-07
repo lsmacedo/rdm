@@ -40,7 +40,12 @@ export function valueOf(
   entity: string,
   field: string,
   rdmObject: RdmObject
-): { table: string; column: string } {
+): { template: string | null; table: string; column: string } {
   const value = rdmObject.fields[`${entity}.${field}`];
-  return { table: entityName(value), column: fieldName(value) };
+  const template = templateFromValue(value);
+  return { template, table: entityName(value), column: fieldName(value) };
+}
+
+export function templateFromValue(value: string): string | null {
+  return /{{.*}}/.test(value) ? value.replace(/{|}/g, '') : null;
 }

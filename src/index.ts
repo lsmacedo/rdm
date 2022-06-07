@@ -1,7 +1,5 @@
 import { format } from 'sql-formatter';
-import { v4 } from 'uuid';
 import prisma from './prisma';
-import json from '../maps/local.template.json';
 import { MergeType, RdmObject } from './types/rdmObject';
 import { readCsv } from './utils/readCsv';
 import { topologicalSort } from './utils/topologicalSort';
@@ -11,13 +9,14 @@ import {
   fieldName,
   fieldsArray,
   valueOf,
+  templateFromValue,
 } from './utils/rdmObjectUtils';
 import {
   createCtesPostgreSql,
-  createTemporaryTablePostgreSql,
   insertFromSelectPostgreSql,
-  insertMultipleRowsPostgreSql,
+  selectFromValuesPostgreSql,
 } from './repositories/postgresql/queries';
+import { flattenObjectToArrayOfRows } from './utils/flattenObjectToArrayOfRows';
 
 type Entity = {
   name: string;
@@ -31,45 +30,52 @@ type Entity = {
  * Import data from a dataset into database.
  */
 async function importDataset(): Promise<void> {
+  // Parse command line arguments
+  const [rdmFilePath] = process.argv.slice(2);
+  if (!rdmFilePath) {
+    throw new Error('Missing rdm file path');
+  }
+
   // Read dataset and RDM file
+  const json = require(`../maps/${rdmFilePath}.json`);
   const datasetRows = await readDatasetRows(`./datasets/${json.path}`);
   const rdmObject = json as RdmObject;
 
   // Get entities data from RDM object
   const entities = getEntitiesData(rdmObject);
 
-  // Create temporary table with columns from dataset
-  const tempTableName = `_rdm_${v4()}`;
-  await createTemporaryTable(entities, tempTableName);
-
   // List of columns for temporary table
   const baseColumnNames = fieldsArray(Object.values(entities[0].dependents));
 
   // Sort columns of dataset rows according to baseColumnNames
-  const rows = datasetRows.map((row) =>
-    Object.keys(row)
-      .filter((key) => baseColumnNames.includes(key))
-      .sort((a, b) => baseColumnNames.indexOf(a) - baseColumnNames.indexOf(b))
-      .reduce((acc, key) => ({ ...acc, [key]: row[key] }), {})
-  );
+  // Also filter out columns that don't have all expected keys
+  const rows = datasetRows
+    .map((row) =>
+      Object.keys(row)
+        .filter((key) => baseColumnNames.includes(key))
+        .sort((a, b) => baseColumnNames.indexOf(a) - baseColumnNames.indexOf(b))
+        .reduce((acc, key) => ({ ...acc, [key]: row[key] }), {})
+    )
+    .filter((row) => Object.keys(row).length === baseColumnNames.length);
 
   // Insert data using CTEs
   const ctePrefix = 'cte_';
   const ctes = createCtesPostgreSql({
     ctes: [
-      // For the temporary table
+      // For the base entity
       {
         name: `${ctePrefix}${entities[0].name}`,
-        // Insert the data that other entities depend on
-        innerSql: insertMultipleRowsPostgreSql({
-          tableName: tempTableName,
-          columnNames: baseColumnNames,
-          rows: rows.map((row) => Object.values(row)),
+        operationType: 'select',
+        // Select the data that other entities depend on
+        innerSql: selectFromValuesPostgreSql({
+          columns: baseColumnNames,
+          rowsCount: rows.length,
         }),
       },
       // For each table...
       ...entities.slice(1).map((entity) => ({
         name: `${ctePrefix}${entity.name}`,
+        operationType: 'insert',
         innerSql: insertFromSelectPostgreSql({
           // Insert into table the columns to be assigned
           insert: {
@@ -81,13 +87,17 @@ async function importDataset(): Promise<void> {
             tablePrefix: ctePrefix,
             table: entities[0].name,
             columns: Object.values(entity.assignments).map((field) => ({
-              template: /{{.*}}/.test(field) ? field.replace(/{|}/g, '') : null,
+              template: templateFromValue(field),
               table: entityName(field),
               column: fieldName(field),
             })),
             distinctOn: entity.uniqueKeys.map((key) => {
-              const { table, column } = valueOf(entity.name, key, rdmObject);
-              return { table: table, column };
+              const { template, table, column } = valueOf(
+                entity.name,
+                key,
+                rdmObject
+              );
+              return { template, table, column };
             }),
           },
           // Join other tables required for the assignments
@@ -125,25 +135,21 @@ async function importDataset(): Promise<void> {
     select 1 from ${entities[entities.length - 1]?.name}
   `;
   console.log(format(sql, { language: 'postgresql' }));
-  await prisma.$executeRawUnsafe(sql);
-}
-
-async function createTemporaryTable(
-  entities: Entity[],
-  tableName: string
-): Promise<void> {
-  // TODO: infer type or add new property to RdmObject type
-  const baseColumnNames = fieldsArray(Object.values(entities[0].dependents));
-  const columns = baseColumnNames.map((name) => ({ name, type: 'text' }));
-
+  console.log(rows.flatMap((row) => Object.values(row)));
   await prisma.$executeRawUnsafe(
-    createTemporaryTablePostgreSql({ tableName, columns })
+    sql,
+    ...rows.flatMap((row) => Object.values(row))
   );
 }
 
 function readDatasetRows(path: string): Promise<Record<string, string>[]> {
   if (path.endsWith('.csv')) {
     return readCsv(path);
+  } else if (path.endsWith('.json')) {
+    const file = require('../' + path);
+    return Promise.resolve(
+      flattenObjectToArrayOfRows(file) as Record<string, string>[]
+    );
   } else {
     throw new Error('Dataset type not supported');
   }
