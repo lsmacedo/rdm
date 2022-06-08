@@ -36,6 +36,27 @@ export function entitiesArray(array: string[]): string[] {
     .filter(uniqueArray);
 }
 
+/**
+ * Gets the value being assigned to a column. Example:
+ *
+ * Input:
+ * ```
+ *   table: 'track'
+ *   column: 'name'
+ *   rdmObject: {
+ *     input: { type: 'json', path: 'example.json' },
+ *     output: {
+ *       type: 'database',
+ *       tables: { track: { name: '_.title' } }
+ *     }
+ *   }
+ * ```
+ *
+ * Output:
+ * ```
+ *   { template: null, table: '_', column: 'title' }
+ * ```
+ */
 export function columnValue(
   table: string,
   column: string,
@@ -49,10 +70,37 @@ export function columnValue(
   };
 }
 
+/**
+ * Gets the template from a field value. Returns null if string does not contain
+ * a template. Example:
+ *
+ * Input:
+ * ```
+ * '{{true}}'
+ * ```
+ *
+ * Output:
+ * ```
+ * true
+ * ```
+ */
 export function templateFromValue(value: string): string | null {
   return /{{.*}}/.test(value) ? value.replace(/{|}/g, '') : null;
 }
 
+/**
+ * Replaces alias with its declaration in a field value. Example:
+ *
+ * Input:
+ * ```
+ * '$track.name'
+ * ```
+ *
+ * Output:
+ * ```
+ '* _.data__items__track__name'
+ * ```
+ */
 export function replaceAliasFromValue(
   value: string,
   rdmObject: RdmObject
@@ -61,3 +109,17 @@ export function replaceAliasFromValue(
   const alias = rdmObject.output.alias?.[column];
   return alias ? value.replace(`${column}.`, alias) : value;
 }
+
+export const getDependentsFromTable = (
+  tableName: string,
+  rdmObject: RdmObject
+): { table: string; column: string }[] => {
+  const { tables } = rdmObject.output;
+  return Object.keys(tables)
+    .filter((key) => key !== tableName)
+    .flatMap((key) =>
+      Object.keys(tables[key].set)
+        .filter((column) => tables[key].set[column].startsWith(`${tableName}.`))
+        .map((column) => ({ table: key, column }))
+    );
+};

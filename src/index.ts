@@ -1,7 +1,6 @@
 import { format } from 'sql-formatter';
 import prisma from './prisma';
 import { RdmObject, RdmTable } from './types/rdmObject';
-import { readCsv } from './utils/readCsv';
 import { topologicalSort } from './utils/topologicalSort';
 import {
   entityName,
@@ -16,9 +15,8 @@ import {
   insertFromSelectPostgreSql,
   selectFromValuesPostgreSql,
 } from './repositories/postgresql/queries';
-import { flattenObjectToArrayOfRows } from './utils/flattenObjectToArrayOfRows';
-import { getDependentsFromTable } from './types/rdmTable';
-import axios from 'axios';
+import { getDependentsFromTable } from './utils/rdmObjectUtils';
+import { readDatasetRows } from './input/getInputRows';
 
 /**
  * Import data from a dataset into database.
@@ -132,35 +130,6 @@ async function importDataset(): Promise<void> {
     sql,
     ...rows.flatMap((row) => Object.values(row))
   );
-}
-
-/**
- * Calls the appropriate function to read the dataset rows.
- */
-async function readDatasetRows(
-  input: RdmObject['input']
-): Promise<Record<string, string>[]> {
-  const { remote, type, path } = input;
-  let data;
-  if (remote) {
-    const response = await axios[input.method || 'get'](path);
-    data = response.data;
-  }
-  switch (type) {
-    case 'csv':
-      if (remote) {
-        throw new Error('Remote CSV datasets are not yet supported');
-      }
-      return readCsv(`./datasets/${path}`);
-    case 'json': {
-      const file = data ?? require(`../datasets/${path}`);
-      return Promise.resolve(
-        flattenObjectToArrayOfRows(file) as Record<string, string>[]
-      );
-    }
-    default:
-      throw new Error('Dataset type not supported');
-  }
 }
 
 /**

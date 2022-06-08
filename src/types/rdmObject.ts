@@ -15,7 +15,6 @@ export type RdmObject = {
   input: {
     type: InputType;
     path: string;
-    remote?: boolean;
     method?: 'get' | 'post' | 'put' | 'delete';
   };
   output: {

@@ -1,10 +1,11 @@
+import * as CSV from 'csv-string';
 import { parse } from 'csv';
 import fs from 'fs';
 
 /**
  * Reads a CSV file and returns an array of rows
  */
-export function readCsv(path: string): Promise<Record<string, string>[]> {
+export function readCsvFile(path: string): Promise<Record<string, string>[]> {
   const columnNames: string[] = [];
   return new Promise((resolve) => {
     const array = [] as Record<string, string>[];
@@ -27,4 +28,11 @@ export function readCsv(path: string): Promise<Record<string, string>[]> {
         resolve(array);
       });
   });
+}
+
+/**
+ * Parses a CSV string into an array of rows
+ */
+export function parseCsvString(csvString: string): Record<string, string>[] {
+  return CSV.parse(csvString, { output: 'objects' });
 }

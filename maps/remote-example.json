@@ -4,7 +4,6 @@
   "source": "https://documenter.getpostman.com/view/8854915/Szf7znEe",
   "input": {
     "type": "json",
-    "remote": true,
     "method": "get",
     "path": "https://ghibliapi.herokuapp.com/locations"
   },
