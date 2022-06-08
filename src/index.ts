@@ -115,17 +115,16 @@ async function importDataset(): Promise<void> {
       })),
     ],
   });
+  const sql = `${ctes.join('')} select 1`;
 
-  // Execute SQL
-  const sql = `
-    ${ctes.join('')}
-    select 1 from ${tables[tables.length - 1]?.name}
-  `;
+  // Log SQL and values
   console.log(format(sql, { language: 'postgresql' }));
   console.log(
     'Values',
     rows.flatMap((row) => Object.values(row))
   );
+
+  // Execute SQL
   await prisma.$executeRawUnsafe(
     sql,
     ...rows.flatMap((row) => Object.values(row))
