@@ -6,7 +6,7 @@ RDM is an open-source dataset mapper. It intends to help developers mapping data
 
 > :warning: This is a work in progress. **Do not use it in production unless you know what you're doing!**
 
-RDM is not yet ready for general use. Although a Command Line Interface isn't implemented at the moment, it's still possible to test it with simple CSV files. The required steps are described below:
+RDM is not yet available for general use. Although a Command Line Interface isn't implemented at the moment, it's still possible to test it with simple CSV or JSON files. The required steps are described below:
 
 1. First of all, clone the repository and cd to it's directory.
 
@@ -16,10 +16,10 @@ cd rdm
 ```
 
 2. Create a `.env` file based on the `.env.example` and set your database url in DATABASE_URL
-3. Install dependencies and then run `prisma generate`
-4. Add a dataset in the `/datasets` directory (only .csv extension is supported right now),
-5. Create a RDM file in the `/maps` directory. For that, copy the `local.example.json` example and update it according to your dataset columns and your database's data model.
-6. Run `yarn dev` (or `npm run dev`) in the root directory.
+3. Install dependencies with yarn or npm, and then run `prisma generate`
+4. Add a dataset in the `/datasets` directory
+5. Create a RDM file in the `/maps` directory based in one of the example files, depending on your dataset
+6. Run `yarn dev json-example` (replacing json-example with your RDM file name)
 
 # RDM File
 

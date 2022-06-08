@@ -1,0 +1,29 @@
+{
+  "name": "Local JSON Dataset Example",
+  "description": "This is a sample JSON dataset of songs that may have multiple artists.",
+  "source": "https://github.com/lsmacedo/rdm",
+  "type": "local",
+  "path": "example.json",
+  "entities": ["track", "artist", "artist_track"],
+  "fields": {
+    "track.name": "_.tracks__name",
+    "track.isrc": "_.tracks__name",
+    "artist.name": "_.tracks__artists__name",
+    "artist_track.artist_id": "artist.id",
+    "artist_track.track_id": "track.id"
+  },
+  "merge": {
+    "track": {
+      "strategy": "upsert",
+      "on": ["isrc"]
+    },
+    "artist": {
+      "strategy": "upsert",
+      "on": ["name"]
+    },
+    "artist_track": {
+      "strategy": "upsert",
+      "on": ["artist_id", "track_id"]
+    }
+  }
+}
