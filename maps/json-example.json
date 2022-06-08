@@ -3,7 +3,7 @@
   "description": "This is a sample JSON dataset of songs that may have multiple artists.",
   "source": "https://github.com/lsmacedo/rdm",
   "input": {
-    "type": "local",
+    "type": "json",
     "path": "example.json"
   },
   "output": {

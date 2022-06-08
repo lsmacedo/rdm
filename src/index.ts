@@ -17,6 +17,7 @@ import {
 } from './repositories/postgresql/queries';
 import { flattenObjectToArrayOfRows } from './utils/flattenObjectToArrayOfRows';
 import { getDependentsFromTable } from './types/rdmTable';
+import axios from 'axios';
 
 /**
  * Import data from a dataset into database.
@@ -30,7 +31,7 @@ async function importDataset(): Promise<void> {
 
   // Read dataset and RDM file
   const json = require(`../maps/${rdmFilePath}.json`) as RdmObject;
-  const datasetRows = await readDatasetRows(`./datasets/${json.input.path}`);
+  const datasetRows = await readDatasetRows(json.input);
   const rdmObject = json as RdmObject;
 
   // Get tables data from RDM object
@@ -76,10 +77,7 @@ async function importDataset(): Promise<void> {
         operationType: 'insert',
         innerSql: insertFromSelectPostgreSql({
           // Insert into table the columns to be assigned
-          insert: {
-            table: table.name,
-            columns: Object.keys(table.data.set),
-          },
+          insert: { table: table.name, columns: Object.keys(table.data.set) },
           // Select the data to be assigned to it (distinct on the unique keys)
           select: {
             tablePrefix: ctePrefix,
@@ -138,16 +136,29 @@ async function importDataset(): Promise<void> {
 /**
  * Calls the appropriate function to read the dataset rows.
  */
-function readDatasetRows(path: string): Promise<Record<string, string>[]> {
-  if (path.endsWith('.csv')) {
-    return readCsv(path);
-  } else if (path.endsWith('.json')) {
-    const file = require('../' + path);
-    return Promise.resolve(
-      flattenObjectToArrayOfRows(file) as Record<string, string>[]
-    );
-  } else {
-    throw new Error('Dataset type not supported');
+async function readDatasetRows(
+  input: RdmObject['input']
+): Promise<Record<string, string>[]> {
+  const { remote, type, path } = input;
+  let data;
+  if (remote) {
+    const response = await axios[input.method || 'get'](path);
+    data = response.data;
+  }
+  switch (type) {
+    case 'csv':
+      if (remote) {
+        throw new Error('Remote CSV datasets are not yet supported');
+      }
+      return readCsv(`./datasets/${path}`);
+    case 'json': {
+      const file = data ?? require(`../datasets/${path}`);
+      return Promise.resolve(
+        flattenObjectToArrayOfRows(file) as Record<string, string>[]
+      );
+    }
+    default:
+      throw new Error('Dataset type not supported');
   }
 }
 
