@@ -1,20 +1,25 @@
+type InputType = 'csv' | 'json';
+type OutputType = 'database';
 export type MergeType = 'insert' | 'update' | 'upsert';
+
+export type RdmTable = {
+  set: Record<string, string>;
+  strategy?: MergeType;
+  uniqueConstraint?: string[];
+};
 
 export type RdmObject = {
   name: string;
   description: string;
   source: string;
-  type: 'local';
-  path: string;
-  entities: string[];
-  // TODO: create new type for fields instead of string
-  fields: {
-    [key: string]: string;
+  input: {
+    type: InputType;
+    path: string;
   };
-  merge: {
-    [key: string]: {
-      strategy: MergeType;
-      on: string[];
+  output: {
+    type: OutputType;
+    tables: {
+      [tableName: string]: RdmTable;
     };
   };
 };

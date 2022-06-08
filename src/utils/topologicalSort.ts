@@ -17,9 +17,16 @@
  */
 export function topologicalSort(
   names: string[],
+  obj: Record<string, string[]>
+): string[] {
+  return topologicalSortHelper(names, obj, [], 0);
+}
+
+function topologicalSortHelper(
+  names: string[],
   obj: Record<string, string[]>,
-  start: string[] = [],
-  depth = 0
+  start: string[],
+  depth: number
 ): string[] {
   // Process dependencies
   const processed = names.reduce((acc, name) => {
@@ -34,6 +41,6 @@ export function topologicalSort(
   const nextNames = names.filter((n) => !processed.includes(n));
   // If there are still items to process, recurse; otherwise return the result
   return nextNames.length && depth <= names.length
-    ? topologicalSort(nextNames, obj, processed, depth + 1)
+    ? topologicalSortHelper(nextNames, obj, processed, depth + 1)
     : processed;
 }

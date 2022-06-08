@@ -1,14 +1,13 @@
 import { format } from 'sql-formatter';
 import prisma from './prisma';
-import { MergeType, RdmObject } from './types/rdmObject';
+import { RdmObject, RdmTable } from './types/rdmObject';
 import { readCsv } from './utils/readCsv';
 import { topologicalSort } from './utils/topologicalSort';
 import {
   entityName,
   entitiesArray,
   fieldName,
-  fieldsArray,
-  valueOf,
+  columnValue,
   templateFromValue,
 } from './utils/rdmObjectUtils';
 import {
@@ -17,14 +16,7 @@ import {
   selectFromValuesPostgreSql,
 } from './repositories/postgresql/queries';
 import { flattenObjectToArrayOfRows } from './utils/flattenObjectToArrayOfRows';
-
-type Entity = {
-  name: string;
-  assignments: Record<string, string>;
-  dependents: Record<string, string>;
-  uniqueKeys: string[];
-  mergeStrategy: MergeType;
-};
+import { getDependentsFromTable } from './types/rdmTable';
 
 /**
  * Import data from a dataset into database.
@@ -37,26 +29,32 @@ async function importDataset(): Promise<void> {
   }
 
   // Read dataset and RDM file
-  const json = require(`../maps/${rdmFilePath}.json`);
-  const datasetRows = await readDatasetRows(`./datasets/${json.path}`);
+  const json = require(`../maps/${rdmFilePath}.json`) as RdmObject;
+  const datasetRows = await readDatasetRows(`./datasets/${json.input.path}`);
   const rdmObject = json as RdmObject;
 
-  // Get entities data from RDM object
-  const entities = getEntitiesData(rdmObject);
+  // Get tables data from RDM object
+  const [dataset, ...tables] = getTables(rdmObject);
 
-  // List of columns for temporary table
-  const baseColumnNames = fieldsArray(Object.values(entities[0].dependents));
+  // List of columns from dataset rows
+  const baseColumns = getDependentsFromTable(dataset.name, rdmObject).map(
+    ({ table, column }) => columnValue(table, column, rdmObject).column
+  );
 
   // Sort columns of dataset rows according to baseColumnNames
   // Also filter out columns that don't have all expected keys
   const rows = datasetRows
     .map((row) =>
       Object.keys(row)
-        .filter((key) => baseColumnNames.includes(key))
-        .sort((a, b) => baseColumnNames.indexOf(a) - baseColumnNames.indexOf(b))
+        .filter((key) => baseColumns.includes(key))
+        .sort((a, b) => baseColumns.indexOf(a) - baseColumns.indexOf(b))
         .reduce((acc, key) => ({ ...acc, [key]: row[key] }), {})
     )
-    .filter((row) => Object.keys(row).length === baseColumnNames.length);
+    .filter((row) => Object.keys(row).length === baseColumns.length);
+
+  if (rows.length === 0) {
+    throw new Error('No valid rows found in dataset');
+  }
 
   // Insert data using CTEs
   const ctePrefix = 'cte_';
@@ -64,65 +62,57 @@ async function importDataset(): Promise<void> {
     ctes: [
       // For the base entity
       {
-        name: `${ctePrefix}${entities[0].name}`,
+        name: `${ctePrefix}${dataset.name}`,
         operationType: 'select',
         // Select the data that other entities depend on
         innerSql: selectFromValuesPostgreSql({
-          columns: baseColumnNames,
+          columns: baseColumns,
           rowsCount: rows.length,
         }),
       },
       // For each table...
-      ...entities.slice(1).map((entity) => ({
-        name: `${ctePrefix}${entity.name}`,
+      ...tables.map((table) => ({
+        name: `${ctePrefix}${table.name}`,
         operationType: 'insert',
         innerSql: insertFromSelectPostgreSql({
           // Insert into table the columns to be assigned
           insert: {
-            table: entity.name,
-            columns: fieldsArray(Object.keys(entity.assignments)),
+            table: table.name,
+            columns: Object.keys(table.data.set),
           },
           // Select the data to be assigned to it (distinct on the unique keys)
           select: {
             tablePrefix: ctePrefix,
-            table: entities[0].name,
-            columns: Object.values(entity.assignments).map((field) => ({
+            table: dataset.name,
+            columns: Object.values(table.data.set).map((field) => ({
               template: templateFromValue(field),
               table: entityName(field),
               column: fieldName(field),
             })),
-            distinctOn: entity.uniqueKeys.map((key) => {
-              const { template, table, column } = valueOf(
-                entity.name,
-                key,
-                rdmObject
-              );
-              return { template, table, column };
-            }),
+            distinctOn: table.data.uniqueConstraint?.map((key) =>
+              columnValue(table.name, key, rdmObject)
+            ),
           },
           // Join other tables required for the assignments
-          joins: entitiesArray(Object.values(entity.assignments))
-            .filter((dependency) => dependency !== entities[0].name)
+          joins: entitiesArray(Object.values(table.data.set))
+            .filter((dependency) => dependency !== dataset.name)
             .map((dependency) => ({
               type: 'inner',
               table: dependency,
               // Join on unique keys from dependencies
-              on: entities
+              on: tables
                 // Get the Entity object for the dependency
                 .find((entity) => entity.name === dependency)!
                 // Get the unique keys for the dependency
-                .uniqueKeys.map((field) => {
-                  const value = valueOf(dependency, field, rdmObject);
-                  return {
-                    column: field,
-                    value: { table: value.table, column: value.column },
-                  };
+                .data.uniqueConstraint!.map((column) => {
+                  const value = columnValue(dependency, column, rdmObject);
+                  return { column, value };
                 }),
             })),
           onConflict: {
-            on: entity.uniqueKeys,
-            action: entity.mergeStrategy === 'upsert' ? 'update' : 'nothing',
-            update: fieldsArray(Object.keys(entity.assignments)),
+            on: table.data.uniqueConstraint!,
+            action: table.data.strategy === 'upsert' ? 'update' : 'nothing',
+            update: Object.keys(table.data.set),
           },
         }),
       })),
@@ -132,16 +122,22 @@ async function importDataset(): Promise<void> {
   // Execute SQL
   const sql = `
     ${ctes.join('')}
-    select 1 from ${entities[entities.length - 1]?.name}
+    select 1 from ${tables[tables.length - 1]?.name}
   `;
   console.log(format(sql, { language: 'postgresql' }));
-  console.log(rows.flatMap((row) => Object.values(row)));
+  console.log(
+    'Values',
+    rows.flatMap((row) => Object.values(row))
+  );
   await prisma.$executeRawUnsafe(
     sql,
     ...rows.flatMap((row) => Object.values(row))
   );
 }
 
+/**
+ * Calls the appropriate function to read the dataset rows.
+ */
 function readDatasetRows(path: string): Promise<Record<string, string>[]> {
   if (path.endsWith('.csv')) {
     return readCsv(path);
@@ -155,71 +151,46 @@ function readDatasetRows(path: string): Promise<Record<string, string>[]> {
   }
 }
 
-function getEntitiesData(rdmObject: RdmObject): Entity[] {
-  const entityNames = ['_', ...Object.values(rdmObject.entities)];
-  const entities = entityNames.map((name) => {
-    const assignments = Object.keys(rdmObject.fields)
-      .filter((key) => key.startsWith(`${name}.`))
-      .reduce(
-        (acc, key) => ({ ...acc, [key]: rdmObject.fields[key] }),
-        {} as Record<string, string>
-      );
-    const dependents = Object.keys(rdmObject.fields)
-      .filter((key) => rdmObject.fields[key].startsWith(`${name}.`))
-      .reduce(
-        (acc, key) => ({ ...acc, [key]: rdmObject.fields[key] }),
-        {} as Record<string, string>
-      );
-    const uniqueKeys = rdmObject.merge[name]?.on ?? [];
-    const mergeStrategy = rdmObject.merge[name]?.strategy ?? 'upsert';
-    return {
-      name,
-      assignments,
-      dependents,
-      uniqueKeys,
-      mergeStrategy,
-    };
+/**
+ * Get the tables from the RDM object sorted by their dependencies.
+ */
+function getTables(rdmObject: RdmObject): { name: string; data: RdmTable }[] {
+  // TODO: validate input from RDM file against SQL injection
+  const output = rdmObject.output;
+
+  // Sort tables
+  const tableNames = ['_', ...Object.keys(output.tables)];
+  const sortedTables = sortTablesByDependencies(tableNames, rdmObject);
+  return sortedTables.map((name) => {
+    const data = output.tables[name] || { set: {} };
+    return { name, data };
   });
-
-  // Sort entities by their dependencies
-  const sortedEntities = sortEntitiesByDependencies(entities);
-
-  // Sort entities assignments according to the entity's dependencies
-  return sortedEntities.map((entity) => ({
-    ...entity,
-    assignments: Object.keys(entity.assignments)
-      .sort((a, b) => {
-        const entityA = entityName(entity.assignments[a]);
-        const entityB = entityName(entity.assignments[b]);
-        return (
-          sortedEntities.map((e) => e.name).indexOf(entityA) -
-          sortedEntities.map((e) => e.name).indexOf(entityB)
-        );
-      })
-      .reduce((acc, key) => ({ ...acc, [key]: entity.assignments[key] }), {}),
-  }));
 }
 
-function sortEntitiesByDependencies(entities: Entity[]): Entity[] {
+/**
+ * Sort the tables by their dependencies.
+ */
+function sortTablesByDependencies(
+  tables: string[],
+  rdmObject: RdmObject
+): string[] {
   // Get object in the necessary format for the topologicalSort function
-  const names = entities.map((e) => e.name);
-  const obj = entities.reduce(
-    (acc, cur) => ({
-      ...acc,
-      [cur.name]: entitiesArray(Object.values(cur.assignments)),
-    }),
-    {}
-  );
+  const obj = tables.reduce((acc, cur) => {
+    const dependencies = entitiesArray(
+      Object.values(rdmObject.output.tables[cur]?.set || {})
+    );
+    return { ...acc, [cur]: dependencies };
+  }, {});
 
   // Execute topological sort
-  const result = topologicalSort(names, obj);
+  const sortedTables = topologicalSort(tables, obj);
 
   // Check for cycles
-  if (result.length !== entities.length) {
+  if (sortedTables.length !== tables.length) {
     throw new Error('Cyclic dependency detected');
   }
 
-  return result.map((n) => entities.find((e) => e.name === n)!);
+  return sortedTables;
 }
 
 importDataset().then(() => {});

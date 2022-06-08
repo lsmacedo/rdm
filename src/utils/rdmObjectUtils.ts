@@ -36,14 +36,17 @@ export function entitiesArray(array: string[]): string[] {
     .filter(uniqueArray);
 }
 
-export function valueOf(
-  entity: string,
-  field: string,
+export function columnValue(
+  table: string,
+  column: string,
   rdmObject: RdmObject
 ): { template: string | null; table: string; column: string } {
-  const value = rdmObject.fields[`${entity}.${field}`];
-  const template = templateFromValue(value);
-  return { template, table: entityName(value), column: fieldName(value) };
+  const value = rdmObject.output.tables[table].set[column];
+  return {
+    template: templateFromValue(value),
+    table: entityName(value),
+    column: fieldName(value),
+  };
 }
 
 export function templateFromValue(value: string): string | null {

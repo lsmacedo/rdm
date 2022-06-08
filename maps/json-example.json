@@ -2,28 +2,36 @@
   "name": "Local JSON Dataset Example",
   "description": "This is a sample JSON dataset of songs that may have multiple artists.",
   "source": "https://github.com/lsmacedo/rdm",
-  "type": "local",
-  "path": "example.json",
-  "entities": ["track", "artist", "artist_track"],
-  "fields": {
-    "track.name": "_.tracks__name",
-    "track.isrc": "_.tracks__name",
-    "artist.name": "_.tracks__artists__name",
-    "artist_track.artist_id": "artist.id",
-    "artist_track.track_id": "track.id"
+  "input": {
+    "type": "local",
+    "path": "example.json"
   },
-  "merge": {
-    "track": {
-      "strategy": "upsert",
-      "on": ["isrc"]
-    },
-    "artist": {
-      "strategy": "upsert",
-      "on": ["name"]
-    },
-    "artist_track": {
-      "strategy": "upsert",
-      "on": ["artist_id", "track_id"]
+  "output": {
+    "type": "database",
+    "tables": {
+      "track": {
+        "set": {
+          "name": "_.tracks__name",
+          "isrc": "_.tracks__isrc"
+        },
+        "strategy": "upsert",
+        "uniqueConstraint": ["isrc"]
+      },
+      "artist": {
+        "set": {
+          "name": "_.tracks__artists__name"
+        },
+        "strategy": "upsert",
+        "uniqueConstraint": ["name"]
+      },
+      "artist_track": {
+        "set": {
+          "artist_id": "artist.id",
+          "track_id": "track.id"
+        },
+        "strategy": "upsert",
+        "uniqueConstraint": ["artist_id", "track_id"]
+      }
     }
   }
 }
