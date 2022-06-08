@@ -20,8 +20,7 @@ export type RdmObject = {
   };
   output: {
     type: OutputType;
-    tables: {
-      [tableName: string]: RdmTable;
-    };
+    alias?: { [key: string]: string };
+    tables: { [tableName: string]: RdmTable };
   };
 };

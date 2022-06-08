@@ -8,18 +8,22 @@
   },
   "output": {
     "type": "database",
+    "alias": {
+      "$track": "_.tracks__",
+      "$artist": "_.tracks__artists__"
+    },
     "tables": {
       "track": {
         "set": {
-          "name": "_.tracks__name",
-          "isrc": "_.tracks__isrc"
+          "name": "$track.name",
+          "isrc": "$track.isrc"
         },
         "strategy": "upsert",
         "uniqueConstraint": ["isrc"]
       },
       "artist": {
         "set": {
-          "name": "_.tracks__artists__name"
+          "name": "$artist.name"
         },
         "strategy": "upsert",
         "uniqueConstraint": ["name"]

@@ -52,3 +52,12 @@ export function columnValue(
 export function templateFromValue(value: string): string | null {
   return /{{.*}}/.test(value) ? value.replace(/{|}/g, '') : null;
 }
+
+export function replaceAliasFromValue(
+  value: string,
+  rdmObject: RdmObject
+): string {
+  const column = entityName(value);
+  const alias = rdmObject.output.alias?.[column];
+  return alias ? value.replace(`${column}.`, alias) : value;
+}
