@@ -16,7 +16,9 @@ export async function readDatasetRows(
   }
 
   const apiData = api ? await getApiData(input) : null;
-  const responseType = api ? api.responseType : file?.path.split('.').at(-1);
+  const responseType = api
+    ? api.responseType
+    : file?.path.split('.')[file?.path.split('.').length - 1];
 
   switch (responseType) {
     case 'csv':
