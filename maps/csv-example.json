@@ -3,8 +3,10 @@
   "description": "This is a dataset of top 50 Spotify music from 2010 to 2019. Originally published at Kaggle:Top Spotify songs from 2010-2019 - BY YEAR which is scraped from Spotify: Organize your music\n\nAfter cleaning the data, it contains 14 columns and 603 rows of data.\n\nThe type of attributes: 'title' is categorical. 'artist' is categorical. 'genre of the track' is categorical. 'year' is quantitative. 'Beats per minute' is quantitative. 'energy' is quantitative. 'Danceability' is quantitative. 'Loudness/dB' is quantitative. 'Liveness' is quantitative. 'Valence' is quantitative. 'Length' is quantitative. 'Acousticness' is quantitative. 'Speechiness' is quantitative. 'Popularity' is quantitative.\n\nQuestions and tasks related to the dataset:\n\nIs there any important characteristics (eg:Beats per minute) that make them top 50 songs in the year?\nWhat is the most popular music genre in these years and is there any trend for the popularity?",
   "source": "https://gist.github.com/rioto9858/ff72b72b3bf5754d29dd1ebf898fc893",
   "input": {
-    "type": "csv",
-    "path": "example.csv"
+    "type": "file",
+    "file": {
+      "path": "example.csv"
+    }
   },
   "output": {
     "type": "database",
