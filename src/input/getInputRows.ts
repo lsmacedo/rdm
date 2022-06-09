@@ -1,7 +1,6 @@
-import { getApiData } from './api/api';
-import { parseCsvString, readCsvFile } from './file/csv';
+import { getApiData } from './api/getApiData';
+import { getFileData } from './file/getFileData';
 import { RdmObject } from '../../src/types/rdmObject';
-import { flattenObjectToArrayOfRows } from '../../src/utils/flattenObjectToArrayOfRows';
 
 /**
  * Calls the appropriate function to read the dataset rows.
@@ -9,27 +8,19 @@ import { flattenObjectToArrayOfRows } from '../../src/utils/flattenObjectToArray
 export async function readDatasetRows(
   input: RdmObject['input']
 ): Promise<Record<string, string>[]> {
-  const { file, api } = input;
-
-  if (!file === !api) {
-    throw new Error('Exactly one value for input is required');
-  }
-
-  const apiData = api ? await getApiData(input) : null;
-  const responseType = api
-    ? api.responseType
-    : file?.path.split('.')[file?.path.split('.').length - 1];
-
-  switch (responseType) {
-    case 'csv':
-      return apiData
-        ? parseCsvString(apiData)
-        : readCsvFile(`./datasets/${file!.path}`);
-    case 'json':
-      return flattenObjectToArrayOfRows(
-        apiData ?? require(`../../datasets/${file!.path}`)
-      ) as Record<string, string>[];
-    default:
-      throw new Error('Dataset type not supported');
-  }
+  const { file, http } = input;
+  const response = await Promise.all(
+    Object.keys(input).map(async (type) => {
+      switch (type) {
+        case 'http':
+          return getApiData(http);
+        case 'file': {
+          return getFileData(file);
+        }
+        default:
+          throw new Error(`Invalid input type "${type}"`);
+      }
+    })
+  );
+  return response.flat();
 }

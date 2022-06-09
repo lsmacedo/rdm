@@ -62,7 +62,7 @@ export function columnValue(
   column: string,
   rdmObject: RdmObject
 ): { template: string | null; table: string; column: string } {
-  const value = rdmObject.output.tables[table].set[column];
+  const value = rdmObject.output.database!.tables[table].set[column];
   return {
     template: templateFromValue(value),
     table: entityName(value),
@@ -114,7 +114,7 @@ export const getDependentsFromTable = (
   tableName: string,
   rdmObject: RdmObject
 ): { table: string; column: string }[] => {
-  const { tables } = rdmObject.output;
+  const { tables } = rdmObject.output.database!;
   return Object.keys(tables)
     .filter((key) => key !== tableName)
     .flatMap((key) =>

@@ -19,7 +19,7 @@ export type RdmObject = {
   source: string;
   input: {
     file?: { path: string };
-    api?: {
+    http?: {
       url: string;
       method: typeof apiRequestMethods[number];
       responseType: typeof inputFormats[number];
@@ -29,8 +29,9 @@ export type RdmObject = {
     };
   };
   output: {
-    type: OutputType;
     alias?: { [key: string]: string };
-    tables: { [tableName: string]: RdmTable };
+    database?: {
+      tables: { [tableName: string]: RdmTable };
+    };
   };
 };

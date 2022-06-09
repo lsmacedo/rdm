@@ -38,7 +38,7 @@
 export function flattenObjectToArrayOfRows(
   obj: any,
   pathDelimiter = '__'
-): object[] {
+): Record<string, string>[] {
   // Initial object should not be empty or of primitive type
   if (!obj || typeof obj !== 'object') {
     throw new Error('Input should be either an object or an array');
@@ -55,7 +55,7 @@ function _flattenObjectToArrayOfRowsHelper(
   obj: any,
   propName: string,
   pathDelimiter: string
-): object | object[] {
+): Record<string, string> | Record<string, string>[] {
   // If the property is empty, return an object with its value
   //
   // Example:
@@ -87,9 +87,11 @@ function _flattenObjectToArrayOfRowsHelper(
   //   [{ ids: 1 }, { ids: 2 }]
   //
   if (Array.isArray(obj)) {
-    return obj.flatMap((item) =>
-      _flattenObjectToArrayOfRowsHelper(item, propName, pathDelimiter)
-    );
+    return obj
+      .map((item) =>
+        _flattenObjectToArrayOfRowsHelper(item, propName, pathDelimiter)
+      )
+      .flat();
   }
 
   // If the property is an object, make recursive calls
@@ -123,7 +125,10 @@ function _flattenObjectToArrayOfRowsHelper(
   const partialArray = results
     .filter((result) => Array.isArray(result))
     .flat()
-    .map((result) => ({ ...reducedObject, ...result }));
+    .map((result) => ({ ...reducedObject, ...result })) as Record<
+    string,
+    string
+  >[];
 
   return partialArray.length ? partialArray : reducedObject;
 }

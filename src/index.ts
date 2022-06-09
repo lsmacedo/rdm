@@ -195,12 +195,15 @@ function getCteInnerSqlForTable(data: {
  */
 function getTables(rdmObject: RdmObject): { name: string; data: RdmTable }[] {
   // TODO: validate input from RDM file against SQL injection
-  const output = rdmObject.output;
+  const { database } = rdmObject.output;
 
-  // Create clone from rdmObject with replaced alias
-  let rdm = Object.assign({}, rdmObject);
-  Object.keys(rdm.output.tables).forEach((tableName) => {
-    const table = rdm.output.tables[tableName];
+  if (!database) {
+    throw new Error('An output database is required');
+  }
+
+  // Replace alias from rdmObject
+  Object.keys(database.tables).forEach((tableName) => {
+    const table = database.tables[tableName];
     table.set = Object.keys(table.set).reduce(
       (acc, column) => ({
         ...acc,
@@ -211,10 +214,10 @@ function getTables(rdmObject: RdmObject): { name: string; data: RdmTable }[] {
   });
 
   // Sort tables
-  const tableNames = ['_', ...Object.keys(output.tables)];
-  const sortedTables = sortTablesByDependencies(tableNames, rdm);
+  const tableNames = ['_', ...Object.keys(database.tables)];
+  const sortedTables = sortTablesByDependencies(tableNames, rdmObject);
   return sortedTables.map((name) => {
-    const data = output.tables[name] || { set: {} };
+    const data = database.tables[name] || { set: {} };
     return { name, data };
   });
 }
@@ -229,7 +232,7 @@ function sortTablesByDependencies(
   // Get object in the necessary format for the topologicalSort function
   const obj = tables.reduce((acc, cur) => {
     const dependencies = entitiesArray(
-      Object.values(rdmObject.output.tables[cur]?.set || {})
+      Object.values(rdmObject.output.database!.tables[cur]?.set || {})
     );
     return { ...acc, [cur]: dependencies };
   }, {});

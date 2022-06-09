@@ -1,4 +1,3 @@
-import * as CSV from 'csv-string';
 import { parse } from 'csv';
 import fs from 'fs';
 
@@ -28,11 +27,4 @@ export function readCsvFile(path: string): Promise<Record<string, string>[]> {
         resolve(array);
       });
   });
-}
-
-/**
- * Parses a CSV string into an array of rows
- */
-export function parseCsvString(csvString: string): Record<string, string>[] {
-  return CSV.parse(csvString, { output: 'objects' });
 }
