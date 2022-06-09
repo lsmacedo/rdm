@@ -1,0 +1,34 @@
+{
+  "name": "API Dataset Example",
+  "description": "This is a sample dataset of locations.",
+  "source": "https://documenter.getpostman.com/view/8854915/Szf7znEe",
+  "input": {
+    "api": {
+      "url": "https://ghibliapi.herokuapp.com/:api",
+      "method": "get",
+      "responseType": "json",
+      "params": { "api": "locations" }
+    }
+  },
+  "output": {
+    "type": "database",
+    "tables": {
+      "location": {
+        "set": {
+          "name": "_.name",
+          "climate": "_.climate"
+        },
+        "strategy": "upsert",
+        "uniqueConstraint": ["name"]
+      },
+      "movie": {
+        "set": {
+          "url": "_.films",
+          "location_id": "location.id"
+        },
+        "strategy": "upsert",
+        "uniqueConstraint": ["url"]
+      }
+    }
+  }
+}
