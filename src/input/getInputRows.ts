@@ -24,7 +24,7 @@ export async function readDatasetRows(
         : readCsvFile(`./datasets/${path}`);
     case 'json':
       return flattenObjectToArrayOfRows(
-        apiData ?? require(`../datasets/${path}`)
+        apiData ?? require(`../../datasets/${path}`)
       ) as Record<string, string>[];
     default:
       throw new Error('Dataset type not supported');

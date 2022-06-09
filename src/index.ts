@@ -13,7 +13,10 @@ import {
 import {
   createCtesPostgreSql,
   insertFromSelectPostgreSql,
+  OnConflictAction,
+  QueryType,
   selectFromValuesPostgreSql,
+  updateFromSelectPostgreSql,
 } from './repositories/postgresql/queries';
 import { getDependentsFromTable } from './utils/rdmObjectUtils';
 import { readDatasetRows } from './input/getInputRows';
@@ -63,7 +66,7 @@ async function importDataset(): Promise<void> {
       // For the base entity
       {
         name: `${ctePrefix}${dataset.name}`,
-        operationType: 'select',
+        type: QueryType.select,
         // Select the data that other entities depend on
         innerSql: selectFromValuesPostgreSql({
           columns: baseColumns,
@@ -73,44 +76,16 @@ async function importDataset(): Promise<void> {
       // For each table...
       ...tables.map((table) => ({
         name: `${ctePrefix}${table.name}`,
-        operationType: 'insert',
-        innerSql: insertFromSelectPostgreSql({
-          // Insert into table the columns to be assigned
-          insert: { table: table.name, columns: Object.keys(table.data.set) },
-          // Select the data to be assigned to it (distinct on the unique keys)
-          select: {
-            tablePrefix: ctePrefix,
-            table: dataset.name,
-            columns: Object.values(table.data.set).map((field) => ({
-              template: templateFromValue(field),
-              table: entityName(field),
-              column: fieldName(field),
-            })),
-            distinctOn: table.data.uniqueConstraint?.map((key) =>
-              columnValue(table.name, key, rdmObject)
-            ),
-          },
-          // Join other tables required for the assignments
-          joins: entitiesArray(Object.values(table.data.set))
-            .filter((dependency) => dependency !== dataset.name)
-            .map((dependency) => ({
-              type: 'inner',
-              table: dependency,
-              // Join on unique keys from dependencies
-              on: tables
-                // Get the Entity object for the dependency
-                .find((entity) => entity.name === dependency)!
-                // Get the unique keys for the dependency
-                .data.uniqueConstraint!.map((column) => {
-                  const value = columnValue(dependency, column, rdmObject);
-                  return { column, value };
-                }),
-            })),
-          onConflict: {
-            on: table.data.uniqueConstraint!,
-            action: table.data.strategy === 'upsert' ? 'update' : 'nothing',
-            update: Object.keys(table.data.set),
-          },
+        type:
+          table.data.strategy === 'update'
+            ? QueryType.update
+            : QueryType.insert,
+        innerSql: getCteInnerSqlForTable({
+          table,
+          tables,
+          ctePrefix,
+          dataset,
+          rdmObject,
         }),
       })),
     ],
@@ -129,6 +104,90 @@ async function importDataset(): Promise<void> {
     sql,
     ...rows.flatMap((row) => Object.values(row))
   );
+}
+
+function getCteInnerSqlForTable(data: {
+  table: { name: string; data: RdmTable };
+  tables: { name: string; data: RdmTable }[];
+  ctePrefix: string;
+  dataset: { name: string; data: RdmTable };
+  rdmObject: RdmObject;
+}): string {
+  const { table, tables, ctePrefix, dataset, rdmObject } = data;
+  // Insert into table the columns to be assigned
+  const insert = { table: table.name, columns: Object.keys(table.data.set) };
+  // Select the data to be assigned to it (distinct on the unique keys)
+  const select = {
+    tablePrefix: ctePrefix,
+    table: dataset.name,
+    columns: Object.values(table.data.set).map((field) => ({
+      template: templateFromValue(field),
+      table: entityName(field),
+      column: fieldName(field),
+    })),
+    distinctOn: table.data.uniqueConstraint?.map((key) =>
+      columnValue(table.name, key, rdmObject)
+    ),
+  };
+  // Join other tables required for the assignments
+  const joins = entitiesArray(Object.values(table.data.set))
+    .filter((dependency) => dependency !== dataset.name)
+    .map((dependency) => ({
+      table: dependency,
+      // Join on unique keys from dependencies
+      on: tables
+        // Get the Entity object for the dependency
+        .find((entity) => entity.name === dependency)!
+        // Get the unique keys for the dependency
+        .data.uniqueConstraint!.map((column) => {
+          const value = columnValue(dependency, column, rdmObject);
+          return { column, value };
+        }),
+    }));
+  // If inserting/upserting, set onConflict
+  const onConflict =
+    ['insert', 'upsert'].includes(table.data.strategy!) &&
+    !table.data.failIfExists
+      ? {
+          on: table.data.uniqueConstraint!,
+          action:
+            table.data.strategy === 'upsert'
+              ? OnConflictAction.update
+              : OnConflictAction.nothing,
+          update: Object.keys(table.data.set),
+        }
+      : undefined;
+
+  switch (table.data.strategy) {
+    case 'insert':
+    case 'upsert':
+      return insertFromSelectPostgreSql({
+        insert,
+        select,
+        joins,
+        onConflict,
+      });
+    case 'update':
+      return updateFromSelectPostgreSql({
+        update: { table: table.name },
+        set: Object.keys(table.data.set).map((key) => ({
+          column: key,
+          value: {
+            template: templateFromValue(table.data.set[key]),
+            table: entityName(table.data.set[key]),
+            column: fieldName(table.data.set[key]),
+          },
+        })),
+        select,
+        // Join other tables required for the assignments
+        joins,
+        uniqueKeys: table.data.uniqueConstraint!,
+      });
+    default:
+      throw new Error(
+        `Invalid value provided for strategy for table ${table.name}`
+      );
+  }
 }
 
 /**

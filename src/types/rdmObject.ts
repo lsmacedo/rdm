@@ -5,6 +5,7 @@ export type MergeType = 'insert' | 'update' | 'upsert';
 export type RdmTable = {
   set: Record<string, string>;
   strategy?: MergeType;
+  failIfExists?: boolean;
   uniqueConstraint?: string[];
 };
 
