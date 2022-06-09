@@ -21,6 +21,6 @@ yarn install
 
 # RDM File
 
-The RDM file maps a dataset into a database. It contains configurations about the input (dataset) and the output (database).
+The `RDM File` maps a dataset into a database. It contains configurations about the input (dataset) and the output (database).
 
-There is still no documentation as it may change a lot during the initial stages of the project. Check one of the examples in the `maps/` directory for reference on how RDM file configuration works.
+There is still no documentation as it may change a lot during the initial stages of the project. Check one of the examples in the `maps/` directory for reference on how `RDM File` configuration works.
