@@ -6,7 +6,7 @@ import { uniqueArray } from './uniqueArray';
  * Get field name from a rdm field string
  */
 export function fieldName(str: string): string {
-  return str.split('.')[1];
+  return str.substring(str.indexOf('.') + 1);
 }
 
 /**
@@ -98,7 +98,7 @@ export function templateFromValue(value: string): string | null {
  *
  * Output:
  * ```
- '* _.data__items__track__name'
+ '* _.data.items.track.name'
  * ```
  */
 export function replaceAliasFromValue(
@@ -107,7 +107,7 @@ export function replaceAliasFromValue(
 ): string {
   const column = entityName(value);
   const alias = rdmObject.output.alias?.[column];
-  return alias ? value.replace(`${column}.`, alias) : value;
+  return alias ? value.replace(column, alias) : value;
 }
 
 export const getDependentsFromTable = (

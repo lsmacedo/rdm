@@ -3,7 +3,10 @@ import { RdmObject } from '../../types/rdmObject';
 import { flattenObjectToArrayOfRows } from '../../utils/flattenObjectToArrayOfRows';
 import { parseCsvString } from '../../utils/parseCsvString';
 
-export async function getApiData(http: RdmObject['input']['http']) {
+export async function getApiData(
+  http: RdmObject['input']['http'],
+  rdmObject: RdmObject
+) {
   const { url, method, headers, body, params, responseType } = http!;
 
   // Validate response type
@@ -30,6 +33,6 @@ export async function getApiData(http: RdmObject['input']['http']) {
     case 'csv':
       return parseCsvString(response.data);
     case 'json':
-      return flattenObjectToArrayOfRows(response.data);
+      return flattenObjectToArrayOfRows(response.data, '.', rdmObject);
   }
 }

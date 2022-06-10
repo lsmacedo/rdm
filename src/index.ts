@@ -1,5 +1,6 @@
 import { format } from 'sql-formatter';
 import cron from 'node-cron';
+import dotenv from 'dotenv';
 import { getPostgresClient } from './repositories/postgresql/db';
 import {
   createCtesPostgreSql,
@@ -23,9 +24,13 @@ import { uniqueArray } from './utils/uniqueArray';
 import { readDatasetRows } from './input/getInputRows';
 import { RdmObject, RdmTable } from './types/rdmObject';
 
-const PRINT_ERROR_STACK_TRACE = false;
-const PRINT_QUERY_SQL = false;
-const PRINT_QUERY_VALUES = false;
+dotenv.config();
+
+const PRINT_ERROR_STACK_TRACE = process.env.PRINT_ERROR_STACK_TRACE === 'true';
+const PRINT_QUERY_SQL = process.env.PRINT_QUERY_SQL === 'true';
+const PRINT_QUERY_VALUES = process.env.PRINT_QUERY_VALUES === 'true';
+const PRINT_DATASET_COLUMNS = process.env.PRINT_DATASET_COLUMNS === 'true';
+const PRINT_DATASET_ROWS = process.env.PRINT_DATASET_ROWS === 'true';
 
 /**
  * Import data from a dataset into database.
@@ -35,7 +40,7 @@ async function importDataset(
   rdmObject: RdmObject
 ): Promise<void> {
   // Read from dataset
-  const datasetRows = await readDatasetRows(rdmObject.input, rdmFilePath);
+  const datasetRows = await readDatasetRows(rdmObject, rdmFilePath);
 
   // Get tables data from RDM object
   const [dataset, ...tables] = getTables(rdmObject);
@@ -93,15 +98,21 @@ async function importDataset(
   });
   const sql = `${ctes.join('')} select 1`;
 
-  // Log SQL and values
+  // Logging
   if (PRINT_QUERY_SQL) {
-    console.log(format(sql, { language: 'postgresql' }));
+    console.log('query sql:', format(sql, { language: 'postgresql' }));
   }
   if (PRINT_QUERY_VALUES) {
     console.log(
-      'Values',
+      'query values:',
       rows.flatMap((row) => Object.values(row))
     );
+  }
+  if (PRINT_DATASET_COLUMNS) {
+    console.log('dataset columns:', baseColumns);
+  }
+  if (PRINT_DATASET_ROWS) {
+    console.log('dataset rows:', rows);
   }
 
   // Execute SQL
@@ -248,8 +259,13 @@ function sortTablesByDependencies(
   const sortedTables = topologicalSort(tables, obj);
 
   // Check for cycles
-  if (sortedTables.length !== tables.length) {
-    throw new Error('Cyclic dependency detected');
+  const missingTables = tables.filter((table) => !sortedTables.includes(table));
+  if (missingTables.length) {
+    throw new Error(
+      `There was an error processing the following tables: [${missingTables.join(
+        ', '
+      )}]. This can be caused by cyclic dependencies or invalid configuration.`
+    );
   }
 
   return sortedTables;

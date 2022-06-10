@@ -6,17 +6,17 @@ import { RdmObject } from '../../src/types/rdmObject';
  * Calls the appropriate function to read the dataset rows.
  */
 export async function readDatasetRows(
-  input: RdmObject['input'],
+  rdmObject: RdmObject,
   rdmFilePath: string
 ): Promise<Record<string, string>[]> {
-  const { file, http } = input;
+  const { file, http } = rdmObject.input;
   const response = await Promise.all(
-    Object.keys(input).map(async (type) => {
+    Object.keys(rdmObject.input).map(async (type) => {
       switch (type) {
         case 'http':
-          return getApiData(http);
+          return getApiData(http, rdmObject);
         case 'file': {
-          return getFileData(file, rdmFilePath);
+          return getFileData(file, rdmFilePath, rdmObject);
         }
         default:
           throw new Error(`Invalid input type "${type}"`);

@@ -4,7 +4,8 @@ import { RdmObject } from '../../types/rdmObject';
 
 export function getFileData(
   file: RdmObject['input']['file'],
-  rdmFilePath: string
+  rdmFilePath: string,
+  rdmObject: RdmObject
 ): Promise<Record<string, string>[]> {
   const fileType = file!.path.slice(file!.path.lastIndexOf('.') + 1);
 
@@ -13,7 +14,11 @@ export function getFileData(
       return readCsvFile(`${rdmFilePath}/${file!.path}`);
     case 'json':
       return Promise.resolve(
-        flattenObjectToArrayOfRows(require(`${rdmFilePath}/${file!.path}`))
+        flattenObjectToArrayOfRows(
+          require(`${rdmFilePath}/${file!.path}`),
+          '.',
+          rdmObject
+        )
       );
     default:
       throw new Error('Dataset type not supported');

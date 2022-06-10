@@ -10,23 +10,23 @@
   },
   "output": {
     "alias": {
-      "$track": "_.tracks__",
-      "$artist": "_.tracks__artists__"
+      "_track": "_.tracks",
+      "_artist": "_.tracks.artists"
     },
     "database": {
-      "url": "postgres://postgres:postgrespassword@localhost/spotifyt",
+      "url": "postgres://postgres:postgrespassword@localhost/tracks",
       "tables": {
         "track": {
           "set": {
-            "name": "$track.name",
-            "isrc": "$track.isrc"
+            "name": "_track.name",
+            "isrc": "_track.isrc"
           },
           "strategy": "upsert",
           "uniqueConstraint": ["isrc"]
         },
         "artist": {
           "set": {
-            "name": "$artist.name"
+            "name": "_artist.name"
           },
           "strategy": "upsert",
           "uniqueConstraint": ["name"]

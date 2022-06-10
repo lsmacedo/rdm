@@ -1,3 +1,7 @@
+import { RdmObject } from 'src/types/rdmObject';
+import { fieldName, replaceAliasFromValue } from './rdmObjectUtils';
+import { uniqueArray } from './uniqueArray';
+
 /**
  * Flattens an object or array into an array of rows. Example:
  *
@@ -33,11 +37,13 @@
  *   ]
  * ```
  * @param obj Object or array to flatten
- * @param pathDelimiter Path delimiter setting for nested properties
+ * @param pathSeparator Path delimiter setting for nested properties
+ * @param rdmObject Will be used to include only properties required from the RDM File
  */
 export function flattenObjectToArrayOfRows(
   obj: any,
-  pathDelimiter = '__'
+  pathSeparator = '.',
+  rdmObject: RdmObject
 ): Record<string, string>[] {
   // Initial object should not be empty or of primitive type
   if (!obj || typeof obj !== 'object') {
@@ -45,7 +51,22 @@ export function flattenObjectToArrayOfRows(
   }
 
   // Call helper function to flatten the object into an array of rows
-  const result = _flattenObjectToArrayOfRowsHelper(obj, '', pathDelimiter);
+  const tables = rdmObject.output.database?.tables || {};
+  const datasetColumns = Object.values(tables)
+    .flatMap((table) =>
+      Object.values(table.set).map((value) =>
+        fieldName(replaceAliasFromValue(value, rdmObject))
+      )
+    )
+    .filter(uniqueArray);
+
+  const result = _flattenObjectToArrayOfRowsHelper(
+    obj,
+    '',
+    '',
+    pathSeparator,
+    datasetColumns
+  );
 
   // Return resulting array of rows
   return Array.isArray(result) ? result : [result];
@@ -53,76 +74,97 @@ export function flattenObjectToArrayOfRows(
 
 function _flattenObjectToArrayOfRowsHelper(
   obj: any,
+  previousPath: string,
   propName: string,
-  pathDelimiter: string
+  pathSeparator: string,
+  datasetColumns: string[]
 ): Record<string, string> | Record<string, string>[] {
+  const newPath = previousPath
+    ? `${previousPath}${pathSeparator}${propName}`
+    : propName;
+
   // If the property is empty, return an object with its value
-  //
-  // Example:
-  //   obj: null
-  //   propName: href
-  // Becomes:
-  //   { href: null }
-  //
-  if (!obj) return { [propName]: obj };
+  if (!obj) return { [newPath]: obj };
 
   // If the property is of primitive type, return an object with its value
-  //
-  // Example:
-  //   obj: true
-  //   propName: public
-  // Becomes:
-  //   { public: true }
-  //
   if (typeof obj !== 'object') {
-    return { [propName]: obj };
+    return { [newPath]: obj };
   }
 
   // If the property is an array, make recursive calls to flatten each element
-  //
-  // Example:
-  //   obj: [1, 2]
-  //   propName: ids
-  // Becomes:
-  //   [{ ids: 1 }, { ids: 2 }]
-  //
   if (Array.isArray(obj)) {
     return obj
-      .map((item) =>
-        _flattenObjectToArrayOfRowsHelper(item, propName, pathDelimiter)
-      )
+      .map((item: any) => {
+        return _flattenObjectToArrayOfRowsHelper(
+          item,
+          previousPath,
+          propName,
+          pathSeparator,
+          datasetColumns
+        );
+      })
       .flat();
   }
 
   // If the property is an object, make recursive calls
   // Resulting objects should be reduced to a single object with all the properties
   // Resulting arrays should include all the properties from reduced object
-  //
-  // Example:
-  //   obj: { name: 'Save your Tears (Remix)', artists: [{ name: 'The Weeknd' }, { name: 'Ariana Grande' }] }
-  //   propName: tracks
-  // Generates following reduced object:
-  //   { tracks__name: 'Save your Tears (Remix)' }
-  // And following partial array:
-  //   [{ tracks__artists__name: 'The Weeknd' }, { tracks__artists__name: 'Ariana Grande' }]
-  // Becomes:
-  //   [
-  //     { tracks__name: 'Save your Tears (Remix)', tracks__artists__name: 'The Weeknd' },
-  //     { tracks__name: 'Save your Tears (Remix)', tracks__artists__name: 'Ariana Grande' },
-  //   ]
-  //
-  const results = Object.keys(obj).map((key) => {
-    const newPropName = propName ? `${propName}${pathDelimiter}${key}` : key;
-    return _flattenObjectToArrayOfRowsHelper(
-      obj[key],
-      newPropName,
-      pathDelimiter
+  const results = Object.keys(obj).flatMap((key) => {
+    const newPropName = newPath ? `${newPath}${pathSeparator}${key}` : key;
+    const keysArray = [];
+
+    // Check if there are object iterations for this propName
+    // TODO: Allow multiple iterations in same value.
+    // Example: country.*.city.*.name
+    if (
+      propName &&
+      datasetColumns
+        .filter((value) => value.includes('*'))
+        .some((value) => {
+          const valueStart = value.substring(0, value.indexOf('*'));
+          return newPath
+            ? valueStart === `${newPath}${pathSeparator}`
+            : valueStart === `${pathSeparator}`;
+        })
+    ) {
+      keysArray.push('*');
+    }
+
+    // Check if current key is required from the columns array
+    if (datasetColumns.some((column) => column.startsWith(newPropName))) {
+      keysArray.push(key);
+    }
+
+    if (!keysArray.length) {
+      return {};
+    }
+
+    return keysArray.map((value) =>
+      _flattenObjectToArrayOfRowsHelper(
+        obj[key],
+        newPath,
+        value,
+        pathSeparator,
+        datasetColumns
+      )
     );
   });
   const reducedObject = results
     .filter((result) => !Array.isArray(result))
-    .reduce((acc, result) => ({ ...acc, ...result }), {});
-  const partialArray = results
+    .reduce((acc, result) => {
+      const hasObjectIteration =
+        !newPath.includes('*') &&
+        Object.keys(result).some((key) => key.includes('*'));
+      if (hasObjectIteration) {
+        results.push([result]);
+      }
+      return {
+        ...acc,
+        ...(!hasObjectIteration ? result : {}),
+      };
+    }, {});
+
+  const mappedArray = results
     .filter((result) => Array.isArray(result))
     .flat()
     .map((result) => ({ ...reducedObject, ...result })) as Record<
@@ -130,5 +172,5 @@ function _flattenObjectToArrayOfRowsHelper(
     string
   >[];
 
-  return partialArray.length ? partialArray : reducedObject;
+  return mappedArray.length ? mappedArray : reducedObject;
 }

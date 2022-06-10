@@ -212,7 +212,7 @@ export const updateFromSelectPostgreSql = (data: {
     .join(', ')} from "${selectPrefix}${select.table}" ${joinSql}) s
   `;
 
-  // where "table1"."column1" = s."table2__columnA"
+  // where "table1"."column1" = s."table2.columnA"
   const whereSql = `
     where ${uniqueKeys
       .map((key) => {
