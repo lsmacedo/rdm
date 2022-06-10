@@ -1,32 +1,27 @@
 {
-  "name": "CRON Example",
-  "description": "This is a sample JSON dataset of songs that may have multiple artists. This data will be refetched every 10 seconds.",
-  "source": "https://github.com/lsmacedo/rdm",
-  "cron": "*/10 * * * * *",
+  "name": "Local CSV Dataset Example",
+  "description": "Example CSV Dataset obtained from the URL below",
+  "source": "https://gist.github.com/rioto9858/ff72b72b3bf5754d29dd1ebf898fc893",
   "input": {
     "file": {
-      "path": "tracks.json"
+      "path": "tracks.csv"
     }
   },
   "output": {
-    "alias": {
-      "_track": "_.tracks",
-      "_artist": "_.tracks.artists"
-    },
     "database": {
       "url": "postgres://postgres:postgrespassword@localhost/tracks",
       "tables": {
         "track": {
           "set": {
-            "name": "_track.name",
-            "isrc": "_track.isrc"
+            "name": "_.title",
+            "main_artist_id": "artist.id"
           },
           "strategy": "upsert",
-          "uniqueConstraint": ["isrc"]
+          "uniqueConstraint": ["name", "main_artist_id"]
         },
         "artist": {
           "set": {
-            "name": "_artist.name"
+            "name": "_.artist"
           },
           "strategy": "upsert",
           "uniqueConstraint": ["name"]

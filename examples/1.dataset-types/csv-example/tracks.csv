@@ -1,4 +1,4 @@
-title,artist,the genre of the track,year,Beats.Per.Minute -The tempo of the song,"Energy- The energy of a song - the higher the value, the more energtic","Danceability - The higher the value, the easier it is to dance to this song","Loudness/dB - The higher the value, the louder the song","Liveness - The higher the value, the more likely the song is a live recording","Valence - The higher the value, the more positive mood for the song",Length - The duration of the song,Acousticness - The higher the value the more acoustic the song is,Speechiness - The higher the value the more spoken word the song contains,Popularity- The higher the value the more popular the song is
+title,artist,genre,year,BPM,Energy,Danceability,"Loudness/dB",Liveness,Valence,Length,Acousticness,Speechiness,Popularity
 "Hey, Soul Sister",Train,neo mellow,2010,97,89,67,-4,8,80,217,19,4,83
 Love The Way You Lie,Eminem,detroit hip hop,2010,87,93,75,-5,52,64,263,24,23,82
 TiK ToK,Kesha,dance pop,2010,120,84,76,-3,29,71,200,10,14,80

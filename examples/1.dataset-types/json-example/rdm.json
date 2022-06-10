@@ -1,6 +1,6 @@
 {
   "name": "Local JSON Dataset Example",
-  "description": "This is a sample JSON dataset of songs that may have multiple artists.",
+  "description": "Example JSON of songs with artists array.",
   "input": {
     "file": {
       "path": "tracks.json"

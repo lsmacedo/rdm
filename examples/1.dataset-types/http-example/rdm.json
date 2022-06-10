@@ -1,6 +1,6 @@
 {
   "name": "HTTP Example",
-  "description": "This is a sample dataset of locations.",
+  "description": "Example API found in the URL below",
   "source": "https://documenter.getpostman.com/view/8854915/Szf7znEe",
   "input": {
     "http": {
