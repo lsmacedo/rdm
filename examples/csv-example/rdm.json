@@ -9,6 +9,7 @@
   },
   "output": {
     "database": {
+      "url": "postgres://postgres:postgrespassword@localhost/tracks",
       "tables": {
         "track": {
           "set": {

@@ -10,6 +10,7 @@
     }
   },
   "output": {
+    "url": "postgres://postgres:postgrespassword@localhost/locations",
     "database": {
       "tables": {
         "location": {

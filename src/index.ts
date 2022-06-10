@@ -1,15 +1,5 @@
 import { format } from 'sql-formatter';
-import { getPrismaClient } from './prisma';
-import { RdmObject, RdmTable } from './types/rdmObject';
-import { topologicalSort } from './utils/topologicalSort';
-import {
-  entityName,
-  entitiesArray,
-  fieldName,
-  columnValue,
-  templateFromValue,
-  replaceAliasFromValue,
-} from './utils/rdmObjectUtils';
+import { getPostgresClient } from './repositories/postgresql/db';
 import {
   createCtesPostgreSql,
   insertFromSelectPostgreSql,
@@ -19,8 +9,18 @@ import {
   updateFromSelectPostgreSql,
 } from './repositories/postgresql/queries';
 import { getDependentsFromTable } from './utils/rdmObjectUtils';
-import { readDatasetRows } from './input/getInputRows';
+import { topologicalSort } from './utils/topologicalSort';
+import {
+  entityName,
+  entitiesArray,
+  fieldName,
+  columnValue,
+  templateFromValue,
+  replaceAliasFromValue,
+} from './utils/rdmObjectUtils';
 import { uniqueArray } from './utils/uniqueArray';
+import { readDatasetRows } from './input/getInputRows';
+import { RdmObject, RdmTable } from './types/rdmObject';
 
 const PRINT_ERROR_STACK_TRACE = false;
 
@@ -102,10 +102,11 @@ async function importDataset(): Promise<void> {
   );
 
   // Execute SQL
-  const prisma = getPrismaClient(rdmObject.output.database!.url);
-  await prisma.$executeRawUnsafe(
+  const client = getPostgresClient(rdmObject.output.database!.url);
+  await client.connect();
+  await client.query(
     sql,
-    ...rows.flatMap((row) => Object.values(row))
+    rows.flatMap((row) => Object.values(row))
   );
 }
 

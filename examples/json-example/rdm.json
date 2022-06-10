@@ -13,6 +13,7 @@
       "$artist": "_.tracks__artists__"
     },
     "database": {
+      "url": "postgres://postgres:postgrespassword@localhost/tracks",
       "tables": {
         "track": {
           "set": {
