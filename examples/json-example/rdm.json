@@ -4,7 +4,7 @@
   "source": "https://github.com/lsmacedo/rdm",
   "input": {
     "file": {
-      "path": "example.json"
+      "path": "tracks.json"
     }
   },
   "output": {

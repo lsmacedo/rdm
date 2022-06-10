@@ -31,6 +31,7 @@ export type RdmObject = {
   output: {
     alias?: { [key: string]: string };
     database?: {
+      url: string;
       tables: { [tableName: string]: RdmTable };
     };
   };

@@ -4,7 +4,7 @@
   "source": "https://gist.github.com/rioto9858/ff72b72b3bf5754d29dd1ebf898fc893",
   "input": {
     "file": {
-      "path": "example.csv"
+      "path": "tracks.csv"
     }
   },
   "output": {

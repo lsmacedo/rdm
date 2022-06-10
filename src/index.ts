@@ -1,5 +1,5 @@
 import { format } from 'sql-formatter';
-import prisma from './prisma';
+import { getPrismaClient } from './prisma';
 import { RdmObject, RdmTable } from './types/rdmObject';
 import { topologicalSort } from './utils/topologicalSort';
 import {
@@ -20,29 +20,31 @@ import {
 } from './repositories/postgresql/queries';
 import { getDependentsFromTable } from './utils/rdmObjectUtils';
 import { readDatasetRows } from './input/getInputRows';
+import { uniqueArray } from './utils/uniqueArray';
+
+const PRINT_ERROR_STACK_TRACE = false;
 
 /**
  * Import data from a dataset into database.
  */
 async function importDataset(): Promise<void> {
-  // Parse command line arguments
+  // Get RDM file path from command line arguments
   const [rdmFilePath] = process.argv.slice(2);
   if (!rdmFilePath) {
     throw new Error('Missing rdm file path');
   }
 
   // Read dataset and RDM file
-  const json = require(`../maps/${rdmFilePath}.json`) as RdmObject;
-  const datasetRows = await readDatasetRows(json.input);
-  const rdmObject = json as RdmObject;
+  const rdmObject = getRdmObject(rdmFilePath);
+  const datasetRows = await readDatasetRows(rdmObject.input, rdmFilePath);
 
   // Get tables data from RDM object
   const [dataset, ...tables] = getTables(rdmObject);
 
-  // List of columns from dataset rows
-  const baseColumns = getDependentsFromTable(dataset.name, rdmObject).map(
-    ({ table, column }) => columnValue(table, column, rdmObject).column
-  );
+  // List of required columns from dataset rows
+  const baseColumns = getDependentsFromTable(dataset.name, rdmObject)
+    .map(({ table, column }) => columnValue(table, column, rdmObject).column)
+    .filter(uniqueArray);
 
   // Sort columns of dataset rows according to baseColumnNames
   // Also filter out columns that don't have all expected keys
@@ -100,6 +102,7 @@ async function importDataset(): Promise<void> {
   );
 
   // Execute SQL
+  const prisma = getPrismaClient(rdmObject.output.database!.url);
   await prisma.$executeRawUnsafe(
     sql,
     ...rows.flatMap((row) => Object.values(row))
@@ -248,4 +251,20 @@ function sortTablesByDependencies(
   return sortedTables;
 }
 
-importDataset().then(() => {});
+function getRdmObject(rdmFilePath: string): RdmObject {
+  try {
+    return require(`${rdmFilePath}/rdm.json`) as RdmObject;
+  } catch (err) {
+    throw new Error('rdm.json not found in the current working directory');
+  }
+}
+
+importDataset()
+  .then(() => {})
+  .catch((err) => {
+    if (PRINT_ERROR_STACK_TRACE) {
+      console.error(err);
+    } else {
+      console.error(`Error: ${err.message}`);
+    }
+  });
