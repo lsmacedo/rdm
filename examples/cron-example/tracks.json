@@ -1,0 +1,19 @@
+{
+  "tracks": [
+    {
+      "isrc": "GBUM71902715",
+      "name": "Time Won't Go Slowly",
+      "artists": [{ "name": "Snow Patrol" }]
+    },
+    {
+      "isrc": "USUG12101839",
+      "name": "Save Your Tears (Remix) (with Ariana Grande) - Bonus Track",
+      "artists": [{ "name": "The Weeknd" }, { "name": "Ariana Grande" }]
+    },
+    {
+      "isrc": "BEHP42200001",
+      "name": "Questions",
+      "artists": [{ "name": "Lost Frequencies" }, { "name": "James Arthur" }]
+    }
+  ]
+}

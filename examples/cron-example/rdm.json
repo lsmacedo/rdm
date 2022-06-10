@@ -1,7 +1,8 @@
 {
-  "name": "Local JSON Dataset Example",
-  "description": "This is a sample JSON dataset of songs that may have multiple artists.",
+  "name": "CRON Example",
+  "description": "This is a sample JSON dataset of songs that may have multiple artists. This data will be refetched every 10 seconds.",
   "source": "https://github.com/lsmacedo/rdm",
+  "cron": "*/10 * * * * *",
   "input": {
     "file": {
       "path": "tracks.json"

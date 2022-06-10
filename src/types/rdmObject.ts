@@ -35,4 +35,5 @@ export type RdmObject = {
       tables: { [tableName: string]: RdmTable };
     };
   };
+  cron?: string;
 };

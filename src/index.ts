@@ -1,4 +1,5 @@
 import { format } from 'sql-formatter';
+import cron from 'node-cron';
 import { getPostgresClient } from './repositories/postgresql/db';
 import {
   createCtesPostgreSql,
@@ -23,19 +24,17 @@ import { readDatasetRows } from './input/getInputRows';
 import { RdmObject, RdmTable } from './types/rdmObject';
 
 const PRINT_ERROR_STACK_TRACE = false;
+const PRINT_QUERY_SQL = false;
+const PRINT_QUERY_VALUES = false;
 
 /**
  * Import data from a dataset into database.
  */
-async function importDataset(): Promise<void> {
-  // Get RDM file path from command line arguments
-  const [rdmFilePath] = process.argv.slice(2);
-  if (!rdmFilePath) {
-    throw new Error('Missing rdm file path');
-  }
-
-  // Read dataset and RDM file
-  const rdmObject = getRdmObject(rdmFilePath);
+async function importDataset(
+  rdmFilePath: string,
+  rdmObject: RdmObject
+): Promise<void> {
+  // Read from dataset
   const datasetRows = await readDatasetRows(rdmObject.input, rdmFilePath);
 
   // Get tables data from RDM object
@@ -95,11 +94,15 @@ async function importDataset(): Promise<void> {
   const sql = `${ctes.join('')} select 1`;
 
   // Log SQL and values
-  console.log(format(sql, { language: 'postgresql' }));
-  console.log(
-    'Values',
-    rows.flatMap((row) => Object.values(row))
-  );
+  if (PRINT_QUERY_SQL) {
+    console.log(format(sql, { language: 'postgresql' }));
+  }
+  if (PRINT_QUERY_VALUES) {
+    console.log(
+      'Values',
+      rows.flatMap((row) => Object.values(row))
+    );
+  }
 
   // Execute SQL
   const client = getPostgresClient(rdmObject.output.database!.url);
@@ -252,6 +255,9 @@ function sortTablesByDependencies(
   return sortedTables;
 }
 
+/**
+ * Gets the RDM Object from the current directory
+ */
 function getRdmObject(rdmFilePath: string): RdmObject {
   try {
     return require(`${rdmFilePath}/rdm.json`) as RdmObject;
@@ -260,12 +266,35 @@ function getRdmObject(rdmFilePath: string): RdmObject {
   }
 }
 
-importDataset()
-  .then(() => {})
-  .catch((err) => {
+async function start(rdmFilePath: string, rdmObject: RdmObject): Promise<void> {
+  try {
+    await importDataset(rdmFilePath, rdmObject);
+    console.log(new Date(), 'The data has been migrated successfully!');
+  } catch (err) {
     if (PRINT_ERROR_STACK_TRACE) {
       console.error(err);
     } else {
-      console.error(`Error: ${err.message}`);
+      console.error(`Error: ${(err as Error).message}`);
     }
-  });
+  }
+}
+
+// Get RDM file path from command line arguments
+const [rdmFilePath] = process.argv.slice(2);
+if (!rdmFilePath) {
+  throw new Error('Missing rdm file path');
+}
+
+const rdmObject = getRdmObject(rdmFilePath);
+
+start(rdmFilePath, rdmObject).then(() => {
+  // Schedule task if cron property is set
+  if (rdmObject.cron) {
+    cron.schedule(rdmObject.cron, () => {
+      start(rdmFilePath, rdmObject).then(() => {});
+    });
+    console.log(new Date(), 'Task scheduled');
+  } else {
+    process.exit(0);
+  }
+});
