@@ -1,0 +1,37 @@
+{
+  "name": "$name",
+  "description": "",
+  "input": {
+    "http": {
+      "url": "https://api.coindesk.com/v1/bpi/currentprice.json",
+      "method": "get",
+      "responseType": "json"
+    }
+  },
+  "output": {
+    "alias": {
+      "_currencies": "_.bpi"
+    },
+    "database": {
+      "url": "",
+      "tables": {
+        "currency": {
+          "set": {
+            "name": "_currencies.*.code",
+            "label": "_currencies.*.description"
+          },
+          "strategy": "upsert",
+          "uniqueConstraint": ["name"]
+        },
+        "rate": {
+          "set": {
+            "currency_id": "currency.id",
+            "value": "_currencies.*.rate"
+          },
+          "strategy": "upsert",
+          "uniqueConstraint": ["currency_id"]
+        }
+      }
+    }
+  }
+}

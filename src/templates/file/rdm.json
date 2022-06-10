@@ -1,0 +1,31 @@
+{
+  "name": "$name",
+  "description": "",
+  "input": {
+    "file": {
+      "path": "dataset.csv"
+    }
+  },
+  "output": {
+    "database": {
+      "url": "",
+      "tables": {
+        "country": {
+          "set": {
+            "name": "_.country"
+          },
+          "strategy": "insert",
+          "uniqueConstraint": ["name"]
+        },
+        "city": {
+          "set": {
+            "name": "_.capital",
+            "country_id": "country.id"
+          },
+          "strategy": "insert",
+          "uniqueConstraint": ["name", "country_id"]
+        }
+      }
+    }
+  }
+}
