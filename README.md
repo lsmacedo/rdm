@@ -19,7 +19,8 @@ yarn install
 Although `RDM` is not yet available for general use, it's already possible to test it with dataset files and HTTP requests. The required steps are described below:
 
 1. Go to the directory of one of the example `RDM` projects, `cd examples/<project name>`
-2. Execute the data transfer with `yarn rdm`
+2. Replace the database connection string in `output.database.url` with your database info.
+3. Execute the data transfer with `yarn rdm`
 
 # RDM File
 
