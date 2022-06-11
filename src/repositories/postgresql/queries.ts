@@ -1,5 +1,3 @@
-import { uniqueArray } from '../../utils/uniqueArray';
-
 export enum QueryType {
   select,
   insert,
@@ -15,7 +13,7 @@ export enum OnConflictAction {
 export const getTableTypesPostgreSql = (tables: string[]) => {
   return `
     select
-      column_name, data_type
+      column_name, data_type, table_name
     from
       information_schema.columns
     where
@@ -48,9 +46,9 @@ export const createCtesPostgreSql = (data: {
 export const selectFromValuesPostgreSql = (data: {
   columns: string[];
   rowsCount: number;
-  tableTypes: Record<string, string>;
+  columnsTypes: Record<string, string>;
 }) => {
-  const { columns, rowsCount, tableTypes } = data;
+  const { columns, rowsCount, columnsTypes } = data;
 
   // select "column1", "column2"
   // from (values ($1::text, $2::integer), ($3::text, $4::integer), ...) as s("column1", "column2")
@@ -65,7 +63,7 @@ export const selectFromValuesPostgreSql = (data: {
               .map(
                 (column, columnIndex) =>
                   `$${rowIndex * columns.length + columnIndex + 1}::${
-                    tableTypes[column]
+                    columnsTypes[column]
                   }`
               )
               .join(', ')})`

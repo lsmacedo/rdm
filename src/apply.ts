@@ -33,6 +33,7 @@ const PRINT_QUERY_SQL = process.env.PRINT_QUERY_SQL === 'true';
 const PRINT_QUERY_VALUES = process.env.PRINT_QUERY_VALUES === 'true';
 const PRINT_DATASET_COLUMNS = process.env.PRINT_DATASET_COLUMNS === 'true';
 const PRINT_DATASET_ROWS = process.env.PRINT_DATASET_ROWS === 'true';
+const PRINT_AFFECTED_ROWS = process.env.PRINT_AFFECTED_ROWS === 'true';
 
 export async function applyDataTransfer(rdmFilePath: string): Promise<void> {
   try {
@@ -77,7 +78,7 @@ async function apply(rdmFilePath: string, rdmObject: RdmObject): Promise<void> {
 
   // Get tables data from RDM object
   const [dataset, ...tables] = getTables(rdmObject);
-  const tableTypes = await getTableTypes(rdmObject, client);
+  const columnsTypes = await getColumnsTypes(tables, client);
 
   // List of required columns from dataset rows
   const baseColumns = getDependentsFromTable(dataset.name, rdmObject)
@@ -111,7 +112,7 @@ async function apply(rdmFilePath: string, rdmObject: RdmObject): Promise<void> {
         innerSql: selectFromValuesPostgreSql({
           columns: baseColumns,
           rowsCount: rows.length,
-          tableTypes,
+          columnsTypes: columnsTypes,
         }),
       },
       // For each table...
@@ -131,7 +132,17 @@ async function apply(rdmFilePath: string, rdmObject: RdmObject): Promise<void> {
       })),
     ],
   });
-  const sql = `${ctes.join('')} select 1`;
+  const sql = `
+    ${ctes.join('')}
+    select
+      ${tables
+        .filter(({ name }) => name !== '_')
+        .map(({ name }) => `count("${ctePrefix}${name}".*) as "${name}"`)}
+    from
+      ${tables
+        .filter(({ name }) => name !== '_')
+        .map(({ name }) => `"${ctePrefix}${name}"`)}
+    `;
 
   // Logging
   if (PRINT_QUERY_SQL) {
@@ -151,10 +162,13 @@ async function apply(rdmFilePath: string, rdmObject: RdmObject): Promise<void> {
   }
 
   // Execute SQL
-  await client.query(
+  const { rows: affectedRows } = await client.query(
     sql,
     rows.flatMap((row) => Object.values(row))
   );
+  if (PRINT_AFFECTED_ROWS) {
+    console.log('affected rows:', affectedRows);
+  }
 }
 
 /**
@@ -275,16 +289,36 @@ function getTables(rdmObject: RdmObject): { name: string; data: RdmTable }[] {
   });
 }
 
-async function getTableTypes(
-  rdmObject: RdmObject,
+async function getColumnsTypes(
+  tables: { name: string; data: RdmTable }[],
   client: Client
 ): Promise<Record<string, string>> {
-  const tableNames = Object.keys(rdmObject.output.database?.tables || {});
+  const tableNames = tables
+    .filter(({ name }) => name !== '_')
+    .map(({ name }) => name);
   const { rows } = await client.query(getTableTypesPostgreSql(tableNames));
-  return rows.reduce(
-    (acc, row) => ({ ...acc, [row.column_name]: row.data_type }),
-    {}
-  );
+  return tables
+    .map((table) => ({
+      table: table,
+      keys: Object.keys(table.data.set),
+      values: Object.values(table.data.set).map((value) => fieldName(value)),
+    }))
+    .reduce(
+      (acc, table) => ({
+        ...acc,
+        ...table.keys.reduce(
+          (acc, key, index) => ({
+            ...acc,
+            [table.values[index]]: rows.find(
+              ({ table_name, column_name }) =>
+                table_name === table.table.name && key === column_name
+            ).data_type,
+          }),
+          {}
+        ),
+      }),
+      {}
+    );
 }
 
 /**
