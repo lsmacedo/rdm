@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { getPostgresClient } from './repositories/postgresql/db';
 import {
   createCtesPostgreSql,
+  getTableTypesPostgreSql,
   insertFromSelectPostgreSql,
   OnConflictAction,
   QueryType,
@@ -23,6 +24,7 @@ import {
 import { uniqueArray } from './utils/uniqueArray';
 import { readDatasetRows } from './input/getInputRows';
 import { RdmObject, RdmTable } from './types/rdmObject';
+import { Client } from 'pg';
 
 dotenv.config();
 
@@ -66,11 +68,16 @@ function getRdmObject(rdmFilePath: string): RdmObject {
  * Import data from dataset into the database.
  */
 async function apply(rdmFilePath: string, rdmObject: RdmObject): Promise<void> {
+  // Connect to Postgres
+  const client = getPostgresClient(rdmObject.output.database!.url);
+  await client.connect();
+
   // Read from dataset
   const datasetRows = await readDatasetRows(rdmObject, rdmFilePath);
 
   // Get tables data from RDM object
   const [dataset, ...tables] = getTables(rdmObject);
+  const tableTypes = await getTableTypes(rdmObject, client);
 
   // List of required columns from dataset rows
   const baseColumns = getDependentsFromTable(dataset.name, rdmObject)
@@ -104,6 +111,7 @@ async function apply(rdmFilePath: string, rdmObject: RdmObject): Promise<void> {
         innerSql: selectFromValuesPostgreSql({
           columns: baseColumns,
           rowsCount: rows.length,
+          tableTypes,
         }),
       },
       // For each table...
@@ -143,8 +151,6 @@ async function apply(rdmFilePath: string, rdmObject: RdmObject): Promise<void> {
   }
 
   // Execute SQL
-  const client = getPostgresClient(rdmObject.output.database!.url);
-  await client.connect();
   await client.query(
     sql,
     rows.flatMap((row) => Object.values(row))
@@ -227,7 +233,6 @@ function getCteInnerSqlForTable(data: {
           },
         })),
         select,
-        // Join other tables required for the assignments
         joins,
         uniqueKeys: table.data.uniqueConstraint!,
       });
@@ -268,6 +273,18 @@ function getTables(rdmObject: RdmObject): { name: string; data: RdmTable }[] {
     const data = database.tables[name] || { set: {} };
     return { name, data };
   });
+}
+
+async function getTableTypes(
+  rdmObject: RdmObject,
+  client: Client
+): Promise<Record<string, string>> {
+  const tableNames = Object.keys(rdmObject.output.database?.tables || {});
+  const { rows } = await client.query(getTableTypesPostgreSql(tableNames));
+  return rows.reduce(
+    (acc, row) => ({ ...acc, [row.column_name]: row.data_type }),
+    {}
+  );
 }
 
 /**

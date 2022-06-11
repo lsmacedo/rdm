@@ -12,6 +12,19 @@ export enum OnConflictAction {
   nothing = 'nothing',
 }
 
+export const getTableTypesPostgreSql = (tables: string[]) => {
+  return `
+    select
+      column_name, data_type
+    from
+      information_schema.columns
+    where
+      table_name in (
+        select * from (values ${tables.map((table) => `('${table}')`)}) s
+      )
+  `;
+};
+
 export const createCtesPostgreSql = (data: {
   ctes: {
     name: string;
@@ -35,11 +48,12 @@ export const createCtesPostgreSql = (data: {
 export const selectFromValuesPostgreSql = (data: {
   columns: string[];
   rowsCount: number;
+  tableTypes: Record<string, string>;
 }) => {
-  const { columns, rowsCount } = data;
+  const { columns, rowsCount, tableTypes } = data;
 
   // select "column1", "column2"
-  // from (values ($1, $2), ($3, $4), ...) as s("column1", "column2")
+  // from (values ($1::text, $2::integer), ($3::text, $4::integer), ...) as s("column1", "column2")
   return `
     select ${columns.map((column) => `"${column}"`).join(', ')}
     from (
@@ -50,7 +64,9 @@ export const selectFromValuesPostgreSql = (data: {
             `(${columns
               .map(
                 (column, columnIndex) =>
-                  `$${rowIndex * columns.length + columnIndex + 1}`
+                  `$${rowIndex * columns.length + columnIndex + 1}::${
+                    tableTypes[column]
+                  }`
               )
               .join(', ')})`
         )
