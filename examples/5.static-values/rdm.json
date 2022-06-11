@@ -1,0 +1,26 @@
+{
+  "name": "Static Values Example",
+  "description": "Example making assignment to static values",
+  "source": "https://api.coindesk.com/v1/bpi/currentprice.json",
+  "input": {
+    "file": {
+      "path": "dataset.csv"
+    }
+  },
+  "output": {
+    "database": {
+      "url": "postgres://postgres:postgrespassword@localhost/files",
+      "tables": {
+        "file": {
+          "set": {
+            "name": "_.filename",
+            "size": "_.size",
+            "type": "'video'"
+          },
+          "strategy": "upsert",
+          "uniqueConstraint": ["name"]
+        }
+      }
+    }
+  }
+}

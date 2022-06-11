@@ -1,6 +1,7 @@
-import { stringify } from 'querystring';
 import { RdmObject } from 'src/types/rdmObject';
 import { uniqueArray } from './uniqueArray';
+
+const tableColumnRegex = /\w+\.\w+/;
 
 /**
  * Get field name from a rdm field string
@@ -21,7 +22,7 @@ export function entityName(str: string): string {
  */
 export function fieldsArray(array: string[]): string[] {
   return array
-    .filter((v) => !/{{.*}}/.test(v))
+    .filter((v) => tableColumnRegex.test(v))
     .map((v) => fieldName(v))
     .filter(uniqueArray);
 }
@@ -31,7 +32,7 @@ export function fieldsArray(array: string[]): string[] {
  */
 export function entitiesArray(array: string[]): string[] {
   return array
-    .filter((v) => !/{{.*}}/.test(v))
+    .filter((v) => tableColumnRegex.test(v))
     .map((v) => entityName(v))
     .filter(uniqueArray);
 }
@@ -72,20 +73,10 @@ export function columnValue(
 
 /**
  * Gets the template from a field value. Returns null if string does not contain
- * a template. Example:
- *
- * Input:
- * ```
- * '{{true}}'
- * ```
- *
- * Output:
- * ```
- * true
- * ```
+ * a template.
  */
 export function templateFromValue(value: string): string | null {
-  return /{{.*}}/.test(value) ? value.replace(/{|}/g, '') : null;
+  return !tableColumnRegex.test(value) ? value : null;
 }
 
 /**
