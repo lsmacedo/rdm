@@ -12,15 +12,16 @@ export async function initRdmObject(
   inputType: InputType,
   cwd: string
 ): Promise<void> {
-  if (!dirExists(name)) {
-    makeDir(name);
+  const path = `${cwd}/${name}`;
+  if (!dirExists(path)) {
+    makeDir(path);
   }
-  if (!(await isDirEmpty(name))) {
+  if (!(await isDirEmpty(path))) {
     throw new Error(
       `Destination '${name}' already exists and it is not an empty directory`
     );
   }
-  await copyDirContents(templates[inputType], `${cwd}/${name}`);
-  replaceStringInFile(`${cwd}/${name}/rdm.json`, '$name', name);
+  await copyDirContents(templates[inputType], path);
+  replaceStringInFile(`${path}/rdm.json`, '$name', name);
   console.log(`RDM project '${name}' created`);
 }
