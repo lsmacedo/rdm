@@ -1,26 +1,29 @@
 {
   "name": "Local JSON Dataset Example",
-  "description": "Example JSON of songs with artists array.",
-  "input": {
-    "file": {
+  "description": "Example JSON of songs with artists array",
+  "steps": [
+    {
+      "name": "_track",
+      "description": "Read tracks from JSON file",
+      "type": "file",
       "path": "tracks.json"
-    }
-  },
-  "output": {
-    "database": {
+    },
+    {
+      "type": "database",
+      "description": "Save rows in database",
       "url": "postgres://postgres:postgrespassword@localhost/tracks",
       "tables": {
         "track": {
           "set": {
-            "name": "_.tracks.name",
-            "isrc": "_.tracks.isrc"
+            "name": "_track.tracks.name",
+            "isrc": "_track.tracks.isrc"
           },
           "strategy": "upsert",
           "uniqueConstraint": ["isrc"]
         },
         "artist": {
           "set": {
-            "name": "_.tracks.artists.name"
+            "name": "_track.tracks.artists.name"
           },
           "strategy": "upsert",
           "uniqueConstraint": ["name"]
@@ -35,5 +38,5 @@
         }
       }
     }
-  }
+  ]
 }

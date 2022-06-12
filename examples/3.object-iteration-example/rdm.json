@@ -1,23 +1,22 @@
 {
   "name": "Object Iteration Example",
   "description": "Example iterating through object by using * instead of the key name",
-  "source": "https://api.coindesk.com/v1/bpi/currentprice.json",
-  "input": {
-    "file": {
+  "steps": [
+    {
+      "name": "_data",
+      "description": "Read data from JSON file",
+      "type": "file",
       "path": "currentprice.json"
-    }
-  },
-  "output": {
-    "alias": {
-      "_currencies": "_.bpi"
     },
-    "database": {
+    {
+      "description": "Save rows in database",
+      "type": "database",
       "url": "postgres://postgres:postgrespassword@localhost/currencies",
       "tables": {
         "currency": {
           "set": {
-            "name": "_currencies.*.code",
-            "label": "_currencies.*.description"
+            "name": "_data.bpi.*.code",
+            "label": "_data.bpi.*.description"
           },
           "strategy": "upsert",
           "uniqueConstraint": ["name"]
@@ -25,12 +24,12 @@
         "rate": {
           "set": {
             "currency_id": "currency.id",
-            "value": "_currencies.*.rate"
+            "value": "_data.bpi.*.rate"
           },
           "strategy": "upsert",
           "uniqueConstraint": ["currency_id"]
         }
       }
     }
-  }
+  ]
 }

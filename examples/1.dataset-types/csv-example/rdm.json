@@ -1,19 +1,21 @@
 {
   "name": "Local CSV Dataset Example",
-  "description": "Example CSV Dataset obtained from the URL below",
-  "source": "https://gist.github.com/rioto9858/ff72b72b3bf5754d29dd1ebf898fc893",
-  "input": {
-    "file": {
+  "description": "Example CSV Dataset",
+  "steps": [
+    {
+      "name": "_track",
+      "description": "Read rows from CSV file",
+      "type": "file",
       "path": "tracks.csv"
-    }
-  },
-  "output": {
-    "database": {
+    },
+    {
+      "description": "Save rows in database",
+      "type": "database",
       "url": "postgres://postgres:postgrespassword@localhost/tracks",
       "tables": {
         "track": {
           "set": {
-            "name": "_.title",
+            "name": "_track.title",
             "main_artist_id": "artist.id"
           },
           "strategy": "upsert",
@@ -21,7 +23,7 @@
         },
         "artist": {
           "set": {
-            "name": "_.artist"
+            "name": "_track.artist"
           },
           "strategy": "upsert",
           "uniqueConstraint": ["name"]
@@ -36,5 +38,5 @@
         }
       }
     }
-  }
+  ]
 }

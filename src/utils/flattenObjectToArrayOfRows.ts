@@ -1,5 +1,5 @@
-import { RdmObject } from 'src/types/rdmObject';
-import { fieldName, replaceAliasFromValue } from './rdmObjectUtils';
+import { RdmObjectOld } from 'src/types/rdmObject';
+import { columnName, replaceAliasFromValue } from './rdmObjectUtils';
 import { uniqueArray } from './uniqueArray';
 
 /**
@@ -24,26 +24,24 @@ import { uniqueArray } from './uniqueArray';
  *   [
  *     {
  *       name: 'Save Your Tears (Remix)',
- *       album__name: 'Save Your Tears (Remix)',
- *       album__type: 'Single',
- *       artists__name: 'The Weeknd',
+ *       album.name: 'Save Your Tears (Remix)',
+ *       album.type: 'Single',
+ *       artists.name: 'The Weeknd',
  *     },
  *     {
  *       name: 'Save Your Tears (Remix)',
- *       album__name: 'Save Your Tears (Remix)',
- *       album__type: 'Single',
- *       artists__name: 'Ariana Grande',
+ *       album.name: 'Save Your Tears (Remix)',
+ *       album.type: 'Single',
+ *       artists.name: 'Ariana Grande',
  *     }
  *   ]
  * ```
  * @param obj Object or array to flatten
- * @param pathSeparator Path delimiter setting for nested properties
- * @param rdmObject Will be used to include only properties required from the RDM File
+ * @param expectedColumns Will be used to include only expected properties for the operation
  */
 export function flattenObjectToArrayOfRows(
   obj: any,
-  pathSeparator = '.',
-  rdmObject: RdmObject
+  expectedColumns: string[]
 ): Record<string, string>[] {
   // Initial object should not be empty or of primitive type
   if (!obj || typeof obj !== 'object') {
@@ -51,21 +49,12 @@ export function flattenObjectToArrayOfRows(
   }
 
   // Call helper function to flatten the object into an array of rows
-  const tables = rdmObject.output.database?.tables || {};
-  const datasetColumns = Object.values(tables)
-    .flatMap((table) =>
-      Object.values(table.set).map((value) =>
-        fieldName(replaceAliasFromValue(value, rdmObject))
-      )
-    )
-    .filter(uniqueArray);
-
   const result = _flattenObjectToArrayOfRowsHelper(
     obj,
     '',
     '',
-    pathSeparator,
-    datasetColumns
+    '.',
+    expectedColumns
   );
 
   // Return resulting array of rows
@@ -77,7 +66,7 @@ function _flattenObjectToArrayOfRowsHelper(
   previousPath: string,
   propName: string,
   pathSeparator: string,
-  datasetColumns: string[]
+  expectedColumns: string[]
 ): Record<string, string> | Record<string, string>[] {
   const newPath = previousPath
     ? `${previousPath}${pathSeparator}${propName}`
@@ -100,7 +89,7 @@ function _flattenObjectToArrayOfRowsHelper(
           previousPath,
           propName,
           pathSeparator,
-          datasetColumns
+          expectedColumns
         );
       })
       .flat();
@@ -118,7 +107,7 @@ function _flattenObjectToArrayOfRowsHelper(
     // Example: country.*.city.*.name
     if (
       propName &&
-      datasetColumns
+      expectedColumns
         .filter((value) => value.includes('*'))
         .some((value) => {
           const valueStart = value.substring(0, value.indexOf('*'));
@@ -130,8 +119,8 @@ function _flattenObjectToArrayOfRowsHelper(
       keysArray.push('*');
     }
 
-    // Check if current key is required from the columns array
-    if (datasetColumns.some((column) => column.startsWith(newPropName))) {
+    // Check if current key is expected from the columns array
+    if (expectedColumns.some((column) => column.startsWith(newPropName))) {
       keysArray.push(key);
     }
 
@@ -145,7 +134,7 @@ function _flattenObjectToArrayOfRowsHelper(
         newPath,
         value,
         pathSeparator,
-        datasetColumns
+        expectedColumns
       )
     );
   });

@@ -1,30 +1,30 @@
 {
-  "name": "Alias Example",
-  "description": "Example using alias instead of the full path name for each property",
-  "input": {
-    "file": {
+  "name": "CRON Example",
+  "description": "Example dataset to be refetched every 10 seconds",
+  "cron": "*/10 * * * * *",
+  "steps": [
+    {
+      "name": "_data",
+      "description": "Read tracks from JSON file",
+      "type": "file",
       "path": "tracks.json"
-    }
-  },
-  "output": {
-    "alias": {
-      "_track": "_.tracks",
-      "_artist": "_.tracks.artists"
     },
-    "database": {
+    {
+      "description": "Save rows in database",
+      "type": "database",
       "url": "postgres://postgres:postgrespassword@localhost/tracks",
       "tables": {
         "track": {
           "set": {
-            "name": "_track.name",
-            "isrc": "_track.isrc"
+            "name": "_data.tracks.name",
+            "isrc": "_data.tracks.isrc"
           },
           "strategy": "upsert",
           "uniqueConstraint": ["isrc"]
         },
         "artist": {
           "set": {
-            "name": "_artist.name"
+            "name": "_data.tracks.artists.name"
           },
           "strategy": "upsert",
           "uniqueConstraint": ["name"]
@@ -39,5 +39,5 @@
         }
       }
     }
-  }
+  ]
 }

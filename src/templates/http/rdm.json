@@ -1,24 +1,22 @@
 {
   "name": "$name",
   "description": "",
-  "input": {
-    "http": {
+  "steps": [
+    {
+      "name": "_data",
+      "type": "http",
       "url": "https://api.coindesk.com/v1/bpi/currentprice.json",
       "method": "get",
       "responseType": "json"
-    }
-  },
-  "output": {
-    "alias": {
-      "_currencies": "_.bpi"
     },
-    "database": {
+    {
+      "type": "database",
       "url": "",
       "tables": {
         "currency": {
           "set": {
-            "name": "_currencies.*.code",
-            "label": "_currencies.*.description"
+            "name": "_data.bpi.currencies.*.code",
+            "label": "_data.bpi.currencies.*.description"
           },
           "strategy": "upsert",
           "uniqueConstraint": ["name"]
@@ -26,12 +24,12 @@
         "rate": {
           "set": {
             "currency_id": "currency.id",
-            "value": "_currencies.*.rate"
+            "value": "_data.bpi.currencies.*.rate"
           },
           "strategy": "upsert",
           "uniqueConstraint": ["currency_id"]
         }
       }
     }
-  }
+  ]
 }

@@ -1,35 +1,71 @@
 {
   "name": "HTTP Example",
-  "description": "Example API found in the URL below",
-  "source": "https://documenter.getpostman.com/view/8854915/Szf7znEe",
-  "input": {
-    "http": {
-      "url": "https://ghibliapi.herokuapp.com/locations",
+  "description": "Spotify API Integration",
+  "steps": [
+    {
+      "name": "_auth",
+      "description": "Authenticate to get access_token",
+      "type": "http",
+      "url": "https://accounts.spotify.com/api/token",
+      "method": "post",
+      "responseType": "json",
+      "headers": {
+        "Authorization": "'Basic ' + env.SPOTIFY_AUTHORIZATION_BASE64",
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      "body": {
+        "grant_type": "client_credentials"
+      }
+    },
+    {
+      "name": "_playlist",
+      "description": "Get playlist with its tracks",
+      "type": "http",
+      "url": "https://api.spotify.com/v1/playlists/37i9dQZEVXbMDoHDwVN2tF",
       "method": "get",
-      "responseType": "json"
-    }
-  },
-  "output": {
-    "url": "postgres://postgres:postgrespassword@localhost/locations",
-    "database": {
+      "responseType": "json",
+      "headers": {
+        "Authorization": "'Bearer ' + _auth.access_token"
+      }
+    },
+    {
+      "description": "Save tracks, albums and artists data in database",
+      "type": "database",
+      "url": "postgres://postgres:postgrespassword@localhost/tracks",
       "tables": {
-        "location": {
+        "track": {
           "set": {
-            "name": "_.name",
-            "climate": "_.climate"
+            "name": "_playlist.tracks.items.track.name",
+            "isrc": "_playlist.tracks.items.track.external_ids.isrc",
+            "duration": "_playlist.tracks.items.track.duration_ms"
           },
-          "strategy": "upsert",
-          "uniqueConstraint": ["name"]
+          "uniqueConstraint": ["isrc"],
+          "strategy": "upsert"
         },
-        "movie": {
+        "album": {
           "set": {
-            "url": "_.films",
-            "location_id": "location.id"
+            "name": "_playlist.tracks.items.track.album.name",
+            "type": "_playlist.tracks.items.track.album.type"
+          },
+          "uniqueConstraint": ["name"],
+          "strategy": "upsert"
+        },
+        "artist": {
+          "set": {
+            "name": "_playlist.tracks.items.track.artists.name"
+          },
+          "uniqueConstraint": ["name"],
+          "strategy": "upsert"
+        },
+        "artist_track": {
+          "set": {
+            "artist_id": "artist.id",
+            "track_id": "track.id"
           },
           "strategy": "upsert",
-          "uniqueConstraint": ["url"]
+          "uniqueConstraint": ["artist_id", "track_id"]
         }
       }
     }
-  }
+  ]
 }

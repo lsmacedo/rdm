@@ -1,25 +1,26 @@
 {
   "name": "$name",
   "description": "",
-  "input": {
-    "file": {
+  "steps": [
+    {
+      "name": "_data",
+      "type": "file",
       "path": "dataset.csv"
-    }
-  },
-  "output": {
-    "database": {
+    },
+    {
+      "type": "database",
       "url": "",
       "tables": {
         "country": {
           "set": {
-            "name": "_.country"
+            "name": "_data.country"
           },
           "strategy": "insert",
           "uniqueConstraint": ["name"]
         },
         "city": {
           "set": {
-            "name": "_.capital",
+            "name": "_data.capital",
             "country_id": "country.id"
           },
           "strategy": "insert",
@@ -27,5 +28,5 @@
         }
       }
     }
-  }
+  ]
 }

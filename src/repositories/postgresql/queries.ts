@@ -185,12 +185,12 @@ export const updateFromSelectPostgreSql = (data: {
   // update "table1"
   const updateSql = `update "${update.table}"`;
 
-  // set "column1" = s."table2_columnA", "column2" = s."table2_columnB"
+  // set "column1" = s."table2.columnA", "column2" = s."table2.columnB"
   const setSql = `
     set ${set
       .map(
         ({ column, value }) =>
-          `"${column}" = s."${value.table}_${value.column}"`
+          `"${column}" = s."${value.table}.${value.column}"`
       )
       .join(', ')}
   `;
@@ -221,7 +221,7 @@ export const updateFromSelectPostgreSql = (data: {
     .map(
       ({ template, table, column }) =>
         template ??
-        `"${selectPrefix}${table}"."${column}" as "${table}_${column}"`
+        `"${selectPrefix}${table}"."${column}" as "${table}.${column}"`
     )
     .join(', ')} from "${selectPrefix}${select.table}" ${joinSql}) s
   `;
@@ -232,7 +232,7 @@ export const updateFromSelectPostgreSql = (data: {
       .map((key) => {
         const { value } = set.find(({ column }) => column === key)!;
         return `
-        "${update.table}"."${key}" = s."${value.table}_${value.column}"
+        "${update.table}"."${key}" = s."${value.table}.${value.column}"
       `;
       })
       .join(' and ')}
